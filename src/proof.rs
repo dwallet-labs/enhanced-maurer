@@ -4,8 +4,11 @@
 use core::array;
 
 use commitment::GroupsPublicParametersAccessors as _;
-use crypto_bigint::{rand_core::CryptoRngCore, Random, Uint};
-use group::{helpers::FlatMapResults, GroupElement, Samplable, StatisticalSecuritySizedNumber};
+use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Random, Uint, U64};
+use group::{
+    helpers::FlatMapResults, ComputationalSecuritySizedNumber, GroupElement, Samplable,
+    StatisticalSecuritySizedNumber,
+};
 use maurer::Language;
 use merlin::Transcript;
 use proof::{
@@ -229,7 +232,52 @@ impl<
             .map(|statement| statement.range_proof_commitment().clone())
             .collect();
 
+        let delta: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
+            Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
+                << RangeProof::RANGE_CLAIM_BITS;
+        // We multiply by two for the + 1
+        let number_of_range_claims = U64::from(
+            u64::try_from(2 * NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?,
+        );
+
+        if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
+            || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
+        {
+            return Err(Error::InvalidPublicParameters);
+        }
+
+        // TODO: this looks like the same bound in the public parameters right? so I should move
+        // this to a function.
+        let bound = Option::from(
+            delta
+                .checked_mul(&number_of_range_claims)
+                .and_then(|bound| {
+                    bound.checked_mul(
+                        &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
+                            << ComputationalSecuritySizedNumber::BITS),
+                    )
+                })
+                .and_then(|bound| {
+                    bound.checked_mul(
+                        &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
+                            << StatisticalSecuritySizedNumber::BITS),
+                    )
+                }),
+        )
+        .ok_or(Error::InvalidPublicParameters)?;
+
         // TODO: range test
+        // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
+        if !self.schnorr_proof.responses.into_iter().all(|response| {
+            let (commitment_message, ..): (_, _) = response.into();
+            let (commitment_message, _) = commitment_message.into();
+
+            <[_; NUM_RANGE_CLAIMS]>::from(commitment_message)
+                .into_iter()
+                .all(|range_claim| range_claim.into() < bound)
+        }) {
+            return Err(Error::OutOfRange);
+        }
 
         Ok(self
             .schnorr_proof
