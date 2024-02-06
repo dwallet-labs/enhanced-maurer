@@ -487,12 +487,8 @@ impl<
             >,
         >,
     {
-        // MESSAGE_SPACE_ORDER >
-        // 2^RANGE_CLAIM_BITS*(NUM_RANGE_CLAIMS*ComputationalSecuritySizedNumber*
-        // ComputationalSecuritySizedNumber + StatisticalSecuritySizedNumber)
-
-        // We require {\color{blue} $q > \Delta\cdot (d(\ell+1+\omegalen) \cdot 2^{\kappa+s} +
-        // 2^{\kappa})$}.
+        // We require $$ |\calM_\pp| >\hat{\Delta} \cdot d \cdot (\ell + \ell_\omega) \cdot
+        // 2^{\kappa+s+1} $$.
         //
         // In practice, we allow working over bounded groups of unknown order, in which case we use
         // a lower bound on the group order to perform this check.
