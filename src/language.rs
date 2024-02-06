@@ -1,7 +1,7 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::{array, marker::PhantomData};
+use core::{array, marker::PhantomData};
 
 use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentScheme};
 use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};

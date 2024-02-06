@@ -2,7 +2,10 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 pub mod language;
+pub mod proof;
+
 pub use language::{EnhanceableLanguage, EnhancedLanguage};
+pub use proof::Proof;
 
 /// Maurer error.
 #[derive(thiserror::Error, Debug)]
