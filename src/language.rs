@@ -201,18 +201,25 @@ pub trait DecomposableWitness<
     fn decompose(
         self,
         range_claim_bits: usize,
-    ) -> [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR] {
-        // TODO: sanity checks, return result?
+    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
         let witness: Uint<WITNESS_LIMBS> = self.into();
+
+        // TODO: any checks on RANGE_CLAIMS_PER_SCALAR?
+        if range_claim_bits == 0
+            || Uint::<WITNESS_LIMBS>::BITS <= range_claim_bits
+            || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= range_claim_bits
+        {
+            return Err(Error::InvalidPublicParameters);
+        }
 
         let mask = (Uint::<WITNESS_LIMBS>::ONE << range_claim_bits)
             .wrapping_sub(&Uint::<WITNESS_LIMBS>::ONE);
 
-        array::from_fn(|i| {
+        Ok(array::from_fn(|i| {
             Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::from(
                 &((witness >> (i * range_claim_bits)) & mask),
             )
-        })
+        }))
     }
 
     fn compose(
@@ -223,6 +230,9 @@ pub trait DecomposableWitness<
     ) -> Result<Self> {
         let delta: Uint<WITNESS_LIMBS> = Uint::<WITNESS_LIMBS>::ONE << range_claim_bits;
         let delta = Self::new(delta.into(), public_parameters)?;
+
+        // TODO: decompose checks too?
+
         let decomposed_witness = decomposed_witness
             .into_iter()
             .map(|witness| {
