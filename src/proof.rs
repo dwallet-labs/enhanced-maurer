@@ -268,6 +268,7 @@ impl<
 
         // TODO: range test
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
+        // $$ Z < \hat{\delta} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
         if !self.schnorr_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
             let (commitment_message, _) = commitment_message.into();
