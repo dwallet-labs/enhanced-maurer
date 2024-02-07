@@ -7,7 +7,7 @@ use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentSche
 use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};
 use group::{
     direct_product, helpers::FlatMapResults, self_product, BoundedGroupElement,
-    ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, Samplable,
+    ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, PartyID, Samplable,
     StatisticalSecuritySizedNumber,
 };
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
@@ -497,8 +497,8 @@ impl<
             >,
         >,
     {
-        // We require $$ |\calM_\pp| >\hat{\Delta} \cdot d \cdot (\ell + \ell_\omega) \cdot
-        // 2^{\kappa+s+1} $$.
+        // We require $$ |\calM_\pp| > \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega)
+        // \cdot 2^{\kappa+s+1} $$.
         //
         // In practice, we allow working over bounded groups of unknown order, in which case we use
         // a lower bound on the group order to perform this check.
@@ -512,22 +512,29 @@ impl<
                 .message_space_public_parameters(),
         );
 
-        let delta: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
-            Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                << RangeProof::RANGE_CLAIM_BITS;
-        // We multiply by two for the + 1
-        let number_of_range_claims = U64::from(
-            u64::try_from(2 * NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?,
-        );
+        let delta_bits = usize::try_from(PartyID::BITS)
+            .ok()
+            .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
+            .ok_or(Error::InvalidPublicParameters)?;
 
         if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
             || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
+            || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= delta_bits
         {
             return Err(Error::InvalidPublicParameters);
         }
 
+        let delta_hat: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
+            Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << delta_bits;
+
+        // We multiply by two for the + 1 TODO: put this in the end or something.
+        // TODO:  delta_hat = delta * MAX_NUM_PARTIES
+        let number_of_range_claims = U64::from(
+            u64::try_from(2 * NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?,
+        );
+
         let bound = Option::from(
-            delta
+            delta_hat
                 .checked_mul(&number_of_range_claims)
                 .and_then(|bound| {
                     bound.checked_mul(
