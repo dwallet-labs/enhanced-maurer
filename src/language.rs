@@ -24,7 +24,8 @@ use crate::{Error, Result};
 
 /// An Enhanced Maurer Zero-Knowledge Proof Language.
 /// Can be generically used to generate a batched Maurer zero-knowledge `Proof` with range claims.
-/// As defined in Appendix B. Maurer Protocols in the paper [TODO: cite].
+/// As defined in Section 4. Enhanced Batch Schnorr Protocols in the paper "2PC-MPC: Threshold ECDSA
+/// with Thousands of Parties".
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct EnhancedLanguage<
     const REPETITIONS: usize,
@@ -192,10 +193,9 @@ impl<
     }
 }
 
-// TODO: name
 /// Compute $$\Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega)
 /// \cdot 2^{\kappa+s+1} $$.
-pub(crate) fn bound<
+pub(crate) fn commitment_message_space_lower_bound<
     const NUM_RANGE_CLAIMS: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
     RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
@@ -321,9 +321,20 @@ pub trait DecomposableWitness<
             })
             .collect::<group::Result<Vec<_>>>()?;
 
-        // TODO: the above checks gurantee no modulation will occurr?
-        // Actually, to assure that we'd need to check the order of the group, not only the limbs.
-        // So add this check. Should I?
+        // Check that the polynomial evaluation will not go through a modulation.
+        // We check against an upper bound, computed in logarithmic form to get an upper bound on
+        // the bits. The upper bound logic is as follows: for $P(x) = a_0 + ... + a_l * x^l$,
+        // $P(x)$ is bounded by $2 * a_l * x^l$, and the log of that is $1 + log(a_l) + l*log(x)$.
+        // For $x = \Delta$, $log(\Delta)$ is range_claim_bits. The coefficients $a_i$ are bounded
+        // by `Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS`.
+        if Uint::<WITNESS_LIMBS>::BITS
+            <= range_claim_bits * RANGE_CLAIMS_PER_SCALAR
+                + Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS
+                + 1
+        {
+            return Err(Error::InvalidPublicParameters);
+        }
+
         let polynomial =
             Polynomial::try_from(decomposed_witness).map_err(|_| Error::InvalidParameters)?;
 
@@ -590,10 +601,13 @@ impl<
                 .message_space_public_parameters(),
         );
 
-        let bound =
-            bound::<NUM_RANGE_CLAIMS, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RangeProof>()?;
+        let commitment_message_space_lower_bound = commitment_message_space_lower_bound::<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >()?;
 
-        if order_lower_bound <= bound {
+        if order_lower_bound <= commitment_message_space_lower_bound {
             return Err(Error::InvalidPublicParameters);
         }
 

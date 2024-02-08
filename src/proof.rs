@@ -224,7 +224,7 @@ impl<
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
         // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
 
-        let bound = crate::language::bound::<
+        let bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             RangeProof,
@@ -326,10 +326,9 @@ impl<
 
         // $ [0,\Delta \cdot d(\ell+1+\omegalen) \cdot 2^{\kappa+s}) $
         let sampling_bit_size: usize = RangeProof::RANGE_CLAIM_BITS
-            .checked_add(StatisticalSecuritySizedNumber::BITS)
-            .and_then(|bits| bits.checked_add(num_range_claims_bits))
-            .and_then(|bits| bits.checked_add(num_range_claims_bits))
+            .checked_add(num_range_claims_bits)
             .and_then(|bits| bits.checked_add(challenge_bits))
+            .and_then(|bits| bits.checked_add(StatisticalSecuritySizedNumber::BITS))
             .ok_or(Error::InvalidPublicParameters)?;
 
         if Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= sampling_bit_size {
@@ -340,6 +339,7 @@ impl<
             Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << sampling_bit_size,
         )
         .unwrap();
+
         let commitment_messages: [CommitmentSchemeMessageSpaceGroupElement<
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             NUM_RANGE_CLAIMS,
