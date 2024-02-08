@@ -4,7 +4,7 @@
 use core::array;
 
 use commitment::GroupsPublicParametersAccessors as _;
-use crypto_bigint::{rand_core::CryptoRngCore, Random, Uint};
+use crypto_bigint::{rand_core::CryptoRngCore, NonZero, RandomMod, Uint};
 use group::{helpers::FlatMapResults, GroupElement, Samplable, StatisticalSecuritySizedNumber};
 use maurer::Language;
 use merlin::Transcript;
@@ -146,7 +146,6 @@ impl<
             })
             .unzip();
 
-        // TODO: commitment are being computed twice. Change bulletproofs.
         let (range_proof, _) = RangeProof::prove(
             &enhanced_language_public_parameters.range_proof_public_parameters,
             commitment_messages,
@@ -155,13 +154,8 @@ impl<
             rng,
         )?;
 
-        let batch_size = witnesses.len();
-
-        let (randomizers, statement_masks) = Self::sample_randomizers_and_statement_masks(
-            batch_size,
-            enhanced_language_public_parameters,
-            rng,
-        )?;
+        let (randomizers, statement_masks) =
+            Self::sample_randomizers_and_statement_masks(enhanced_language_public_parameters, rng)?;
 
         let (schnorr_proof, statements) = maurer::Proof::<
             REPETITIONS,
@@ -215,9 +209,6 @@ impl<
         >,
         rng: &mut impl CryptoRngCore,
     ) -> Result<()> {
-        // TODO: here we should validate all the sizes are good etc. for example WITNESS_MASK_LIMBS
-        // and RANGE_CLAIM_LIMBS and the message space thingy
-
         let transcript = Self::setup_range_proof(
             protocol_context,
             &enhanced_language_public_parameters.range_proof_public_parameters,
@@ -273,29 +264,6 @@ impl<
             RangeProof,
         >,
     ) -> Result<Transcript> {
-        // TODO: choice of parameters, batching conversation in airport.
-        // if WITNESS_MASK_LIMBS
-        //     != RANGE_CLAIM_LIMBS
-        //         + super::ChallengeSizedNumber::LIMBS
-        //         + StatisticalSecuritySizedNumber::LIMBS
-        //     || WITNESS_MASK_LIMBS > COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS
-        //     || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::from(
-        //         &Uint::<WITNESS_MASK_LIMBS>::MAX,
-        //     ) >= language::enhanced::RangeProofCommitmentSchemeMessageSpaceGroupElement::<
-        //       COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, NUM_RANGE_CLAIMS,
-        //         Language,
-        //     >::lower_bound_from_public_parameters(
-        //         &range_proof_public_parameters
-        //             .as_ref()
-        //             .as_ref()
-        //             .message_space_public_parameters,
-        //     )
-        // {
-        //     // TODO: the lower bound check fails
-        //     // TODO: dedicated error?
-        //     return Err(Error::InvalidParameters);
-        // }
-
         let mut transcript = Transcript::new(Language::NAME.as_bytes());
 
         transcript.append_message(
@@ -303,7 +271,10 @@ impl<
             RangeProof::NAME.as_bytes(),
         );
 
-        // TODO: serialize the public parameters?
+        transcript.serialize_to_transcript_as_json(
+            b"range proof public parameters",
+            range_proof_public_parameters,
+        )?;
 
         transcript.serialize_to_transcript_as_json(b"protocol context", protocol_context)?;
 
@@ -311,7 +282,6 @@ impl<
     }
 
     pub(crate) fn sample_randomizers_and_statement_masks(
-        batch_size: usize,
         enhanced_language_public_parameters: &EnhancedPublicParameters<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
@@ -339,43 +309,48 @@ impl<
             Language,
         >; REPETITIONS],
     )> {
-        // TODO
-        // let sampling_bit_size: usize = RangeProof::RANGE_CLAIM_BITS
-        // + ComputationalSecuritySizedNumber::BITS
-        // + StatisticalSecuritySizedNumber::BITS;
+        // This is an upper bound on the number of bits, as `ilog2` rounds down.
+        let num_range_claims_bits = usize::try_from(NUM_RANGE_CLAIMS.ilog2())
+            .ok()
+            .and_then(|log_lower_bound| log_lower_bound.checked_add(1))
+            .ok_or(Error::InvalidPublicParameters)?;
 
-        // 6. randomizer should be bigger than the witness max size by 128-bit + challenge size.
-        //    witness max size should be defined in the public paramters, and then randomizer size
-        //    is bigger than that using above formula and is also dynamic. so the sampling should be
-        //    bounded. And then it doesn't need to be the phi(n) bullshit, we just need to have the
-        //    witness group be of size range claim upper bound + 128 + challenge size.
+        let challenge_bits = EnhancedLanguage::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
+        >::challenge_bits()?;
 
-        // TODO: check that this is < SCALAR_LIMBS?
-        // TODO: formula + challenge : in lightning its 1, in bp 128
+        // $ [0,\Delta \cdot d(\ell+1+\omegalen) \cdot 2^{\kappa+s}) $
         let sampling_bit_size: usize = RangeProof::RANGE_CLAIM_BITS
-            + StatisticalSecuritySizedNumber::BITS
-            + EnhancedLanguage::<
-                REPETITIONS,
-                NUM_RANGE_CLAIMS,
-                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                RangeProof,
-                UnboundedWitnessSpaceGroupElement,
-                Language,
-            >::challenge_bits(batch_size)?;
+            .checked_add(StatisticalSecuritySizedNumber::BITS)
+            .and_then(|bits| bits.checked_add(num_range_claims_bits))
+            .and_then(|bits| bits.checked_add(num_range_claims_bits))
+            .and_then(|bits| bits.checked_add(challenge_bits))
+            .ok_or(Error::InvalidPublicParameters)?;
 
-        // TODO: verify
-        let mask = Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::MAX
-            >> (Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS - sampling_bit_size);
+        if Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= sampling_bit_size {
+            return Err(Error::InvalidPublicParameters);
+        }
 
+        let sampling_range_upper_bound = NonZero::new(
+            Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << sampling_bit_size,
+        )
+        .unwrap();
         let commitment_messages: [CommitmentSchemeMessageSpaceGroupElement<
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             NUM_RANGE_CLAIMS,
             RangeProof,
         >; REPETITIONS] = array::from_fn(|_| {
             array::from_fn(|_| {
-                let value = (Uint::<{ COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS }>::random(rng)
-                    & mask)
-                    .into();
+                let value = Uint::<{ COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS }>::random_mod(
+                    rng,
+                    &sampling_range_upper_bound,
+                )
+                .into();
 
                 RangeProof::RangeClaimGroupElement::new(
                     value,

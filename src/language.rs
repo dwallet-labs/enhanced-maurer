@@ -323,7 +323,7 @@ pub trait DecomposableWitness<
 
         // TODO: the above checks gurantee no modulation will occurr?
         // Actually, to assure that we'd need to check the order of the group, not only the limbs.
-        // So add this check.
+        // So add this check. Should I?
         let polynomial =
             Polynomial::try_from(decomposed_witness).map_err(|_| Error::InvalidParameters)?;
 
