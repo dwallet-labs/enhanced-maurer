@@ -251,19 +251,41 @@ pub trait DecomposableWitness<
     const WITNESS_LIMBS: usize,
 >: KnownOrderScalar<WITNESS_LIMBS>
 {
-    fn decompose(
-        self,
-        range_claim_bits: usize,
-    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
-        let witness: Uint<WITNESS_LIMBS> = self.into();
+    fn valid_parameters(range_claim_bits: usize) -> Result<()> {
+        if range_claim_bits == 0 || RANGE_CLAIMS_PER_SCALAR == 0 {
+            return Err(Error::InvalidPublicParameters);
+        }
 
-        // TODO: any checks on RANGE_CLAIMS_PER_SCALAR?
-        if range_claim_bits == 0
-            || Uint::<WITNESS_LIMBS>::BITS <= range_claim_bits
+        // Check that the witness is big enough to hold the range claim representation of the
+        // scalar, which is the number of range claims per scalar times the number of bits per
+        // claim.
+        let witness_too_small_for_scalar_range_claim_representation = range_claim_bits
+            .checked_mul(RANGE_CLAIMS_PER_SCALAR)
+            .map(|witness_in_range_claims_bits| {
+                Uint::<WITNESS_LIMBS>::BITS <= witness_in_range_claims_bits
+            })
+            .unwrap_or(true);
+
+        if witness_too_small_for_scalar_range_claim_representation
             || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= range_claim_bits
         {
             return Err(Error::InvalidPublicParameters);
         }
+
+        if WITNESS_LIMBS <= COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS {
+            return Err(Error::InvalidPublicParameters);
+        }
+
+        Ok(())
+    }
+
+    fn decompose(
+        self,
+        range_claim_bits: usize,
+    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
+        Self::valid_parameters(range_claim_bits)?;
+
+        let witness: Uint<WITNESS_LIMBS> = self.into();
 
         let mask = (Uint::<WITNESS_LIMBS>::ONE << range_claim_bits)
             .wrapping_sub(&Uint::<WITNESS_LIMBS>::ONE);
@@ -281,16 +303,15 @@ pub trait DecomposableWitness<
         public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> Result<Self> {
+        Self::valid_parameters(range_claim_bits)?;
+
         let delta: Uint<WITNESS_LIMBS> = Uint::<WITNESS_LIMBS>::ONE << range_claim_bits;
         let delta = Self::new(delta.into(), public_parameters)?;
-
-        // TODO: decompose checks too?
 
         let decomposed_witness = decomposed_witness
             .into_iter()
             .map(|witness| {
                 Self::new(
-                    // TODO: need to check this is ok?
                     Uint::<WITNESS_LIMBS>::from(&Uint::<
                         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
                     >::from(witness))
@@ -300,6 +321,9 @@ pub trait DecomposableWitness<
             })
             .collect::<group::Result<Vec<_>>>()?;
 
+        // TODO: the above checks gurantee no modulation will occurr?
+        // Actually, to assure that we'd need to check the order of the group, not only the limbs.
+        // So add this check.
         let polynomial =
             Polynomial::try_from(decomposed_witness).map_err(|_| Error::InvalidParameters)?;
 
