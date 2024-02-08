@@ -1,13 +1,13 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::{array, marker::PhantomData};
+use core::{array, marker::PhantomData};
 
 use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentScheme};
 use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};
 use group::{
     direct_product, helpers::FlatMapResults, self_product, BoundedGroupElement,
-    ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, Samplable,
+    ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, PartyID, Samplable,
     StatisticalSecuritySizedNumber,
 };
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
@@ -24,7 +24,8 @@ use crate::{Error, Result};
 
 /// An Enhanced Maurer Zero-Knowledge Proof Language.
 /// Can be generically used to generate a batched Maurer zero-knowledge `Proof` with range claims.
-/// As defined in Appendix B. Maurer Protocols in the paper [TODO: cite].
+/// As defined in Section 4. Enhanced Batch Schnorr Protocols in the paper "2PC-MPC: Threshold ECDSA
+/// with Thousands of Parties".
 #[derive(Clone, PartialEq, Eq, Debug)]
 pub struct EnhancedLanguage<
     const REPETITIONS: usize,
@@ -192,25 +193,99 @@ impl<
     }
 }
 
+/// Compute $$\Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega)
+/// \cdot 2^{\kappa+s+1} $$.
+pub(crate) fn commitment_message_space_lower_bound<
+    const NUM_RANGE_CLAIMS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+>() -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
+    let delta_bits = usize::try_from(PartyID::BITS)
+        .ok()
+        .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
+        .ok_or(Error::InvalidPublicParameters)?;
+
+    if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
+        || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
+        || RangeProof::RANGE_CLAIM_BITS == 0
+        || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= delta_bits
+    {
+        return Err(Error::InvalidPublicParameters);
+    }
+
+    // $$ \hat{\Delta} = \Delta \cdot n_{max} $$.
+    let delta_hat: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
+        Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << delta_bits;
+
+    let number_of_range_claims =
+        U64::from(u64::try_from(NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?);
+
+    Option::from(
+        delta_hat
+            .checked_mul(&number_of_range_claims)
+            .and_then(|bound| {
+                bound.checked_mul(
+                    &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
+                        << ComputationalSecuritySizedNumber::BITS),
+                )
+            })
+            .and_then(|bound| {
+                bound.checked_mul(
+                    &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
+                        << StatisticalSecuritySizedNumber::BITS),
+                )
+            })
+            .and_then(|bound| {
+                // Account for the $$ +1 $$ in $$ 2^{\kappa+s+1} $$.
+                bound.checked_mul(&Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::from(
+                    2u8,
+                ))
+            }),
+    )
+    .ok_or(Error::InvalidPublicParameters)
+}
+
 pub trait DecomposableWitness<
     const RANGE_CLAIMS_PER_SCALAR: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
     const WITNESS_LIMBS: usize,
 >: KnownOrderScalar<WITNESS_LIMBS>
 {
-    fn decompose(
-        self,
-        range_claim_bits: usize,
-    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
-        let witness: Uint<WITNESS_LIMBS> = self.into();
+    fn valid_parameters(range_claim_bits: usize) -> Result<()> {
+        if range_claim_bits == 0 || RANGE_CLAIMS_PER_SCALAR == 0 {
+            return Err(Error::InvalidPublicParameters);
+        }
 
-        // TODO: any checks on RANGE_CLAIMS_PER_SCALAR?
-        if range_claim_bits == 0
-            || Uint::<WITNESS_LIMBS>::BITS <= range_claim_bits
+        // Check that the witness is big enough to hold the range claim representation of the
+        // scalar, which is the number of range claims per scalar times the number of bits per
+        // claim.
+        let witness_too_small_for_scalar_range_claim_representation = range_claim_bits
+            .checked_mul(RANGE_CLAIMS_PER_SCALAR)
+            .map(|witness_in_range_claims_bits| {
+                Uint::<WITNESS_LIMBS>::BITS <= witness_in_range_claims_bits
+            })
+            .unwrap_or(true);
+
+        if witness_too_small_for_scalar_range_claim_representation
             || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= range_claim_bits
         {
             return Err(Error::InvalidPublicParameters);
         }
+
+        if WITNESS_LIMBS <= COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS {
+            return Err(Error::InvalidPublicParameters);
+        }
+
+        Ok(())
+    }
+
+    fn decompose(
+        self,
+        range_claim_bits: usize,
+    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
+        Self::valid_parameters(range_claim_bits)?;
+
+        let witness: Uint<WITNESS_LIMBS> = self.into();
 
         let mask = (Uint::<WITNESS_LIMBS>::ONE << range_claim_bits)
             .wrapping_sub(&Uint::<WITNESS_LIMBS>::ONE);
@@ -228,16 +303,15 @@ pub trait DecomposableWitness<
         public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> Result<Self> {
+        Self::valid_parameters(range_claim_bits)?;
+
         let delta: Uint<WITNESS_LIMBS> = Uint::<WITNESS_LIMBS>::ONE << range_claim_bits;
         let delta = Self::new(delta.into(), public_parameters)?;
-
-        // TODO: decompose checks too?
 
         let decomposed_witness = decomposed_witness
             .into_iter()
             .map(|witness| {
                 Self::new(
-                    // TODO: need to check this is ok?
                     Uint::<WITNESS_LIMBS>::from(&Uint::<
                         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
                     >::from(witness))
@@ -246,6 +320,20 @@ pub trait DecomposableWitness<
                 )
             })
             .collect::<group::Result<Vec<_>>>()?;
+
+        // Check that the polynomial evaluation will not go through a modulation.
+        // We check against an upper bound, computed in logarithmic form to get an upper bound on
+        // the bits. The upper bound logic is as follows: for $P(x) = a_0 + ... + a_l * x^l$,
+        // $P(x)$ is bounded by $2 * a_l * x^l$, and the log of that is $1 + log(a_l) + l*log(x)$.
+        // For $x = \Delta$, $log(\Delta)$ is range_claim_bits. The coefficients $a_i$ are bounded
+        // by `Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS`.
+        if Uint::<WITNESS_LIMBS>::BITS
+            <= range_claim_bits * RANGE_CLAIMS_PER_SCALAR
+                + Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS
+                + 1
+        {
+            return Err(Error::InvalidPublicParameters);
+        }
 
         let polynomial =
             Polynomial::try_from(decomposed_witness).map_err(|_| Error::InvalidParameters)?;
@@ -497,11 +585,12 @@ impl<
             >,
         >,
     {
-        // We require $$ |\calM_\pp| >\hat{\Delta} \cdot d \cdot (\ell + \ell_\omega) \cdot
-        // 2^{\kappa+s+1} $$.
+        // We require $$ |\calM_\pp| > \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega)
+        //     // \cdot 2^{\kappa+s+1} $$.
         //
         // In practice, we allow working over bounded groups of unknown order, in which case we use
         // a lower bound on the group order to perform this check.
+
         let order_lower_bound = CommitmentSchemeMessageSpaceGroupElement::<
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             NUM_RANGE_CLAIMS,
@@ -512,39 +601,13 @@ impl<
                 .message_space_public_parameters(),
         );
 
-        let delta: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
-            Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                << RangeProof::RANGE_CLAIM_BITS;
-        // We multiply by two for the + 1
-        let number_of_range_claims = U64::from(
-            u64::try_from(2 * NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?,
-        );
+        let commitment_message_space_lower_bound = commitment_message_space_lower_bound::<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >()?;
 
-        if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
-            || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
-        {
-            return Err(Error::InvalidPublicParameters);
-        }
-
-        let bound = Option::from(
-            delta
-                .checked_mul(&number_of_range_claims)
-                .and_then(|bound| {
-                    bound.checked_mul(
-                        &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                            << ComputationalSecuritySizedNumber::BITS),
-                    )
-                })
-                .and_then(|bound| {
-                    bound.checked_mul(
-                        &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                            << StatisticalSecuritySizedNumber::BITS),
-                    )
-                }),
-        )
-        .ok_or(Error::InvalidPublicParameters)?;
-
-        if order_lower_bound <= bound {
+        if order_lower_bound <= commitment_message_space_lower_bound {
             return Err(Error::InvalidPublicParameters);
         }
 
