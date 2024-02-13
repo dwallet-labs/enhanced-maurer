@@ -8,11 +8,7 @@ use group::{PartyID, Samplable};
 use proof::{range, AggregatableRangeProof};
 use serde::Serialize;
 
-use crate::{
-    aggregation::Output,
-    language::{EnhancedPublicParameters, WitnessSpaceGroupElement},
-    EnhanceableLanguage, Error,
-};
+use crate::{aggregation::Output, EnhanceableLanguage, EnhancedLanguage, Error};
 
 pub struct Party<
     const REPETITIONS: usize,
@@ -28,27 +24,25 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    pub party_id: PartyID,
-    pub threshold: PartyID,
-    pub number_of_parties: PartyID,
-    pub language_public_parameters: EnhancedPublicParameters<
-        REPETITIONS,
+    #[allow(dead_code)]
+    pub(super) maurer_proof_aggregation_round_party:
+        maurer::aggregation::proof_aggregation_round::Party<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+            ProtocolContext,
+        >,
+    #[allow(dead_code)]
+    pub(super) range_proof_proof_aggregation_round_party: range::ProofAggregationRoundParty<
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
         RangeProof,
-        UnboundedWitnessSpaceGroupElement,
-        Language,
-    >,
-    pub protocol_context: ProtocolContext,
-    pub witnesses: Vec<
-        WitnessSpaceGroupElement<
-            REPETITIONS,
-            NUM_RANGE_CLAIMS,
-            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-            UnboundedWitnessSpaceGroupElement,
-            Language,
-        >,
     >,
 }
 

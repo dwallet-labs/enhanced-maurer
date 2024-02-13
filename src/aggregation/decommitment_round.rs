@@ -11,8 +11,7 @@ use serde::Serialize;
 
 use crate::{
     aggregation::{proof_share_round, Output},
-    language::{EnhancedPublicParameters, WitnessSpaceGroupElement},
-    EnhanceableLanguage, Error, Result,
+    EnhanceableLanguage, EnhancedLanguage, Error, Result,
 };
 
 pub struct Party<
@@ -29,20 +28,10 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    pub party_id: PartyID,
-    pub threshold: PartyID,
-    pub number_of_parties: PartyID,
-    pub language_public_parameters: EnhancedPublicParameters<
+    #[allow(dead_code)]
+    pub(super) maurer_decommitment_round_party: maurer::aggregation::decommitment_round::Party<
         REPETITIONS,
-        NUM_RANGE_CLAIMS,
-        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-        RangeProof,
-        UnboundedWitnessSpaceGroupElement,
-        Language,
-    >,
-    pub protocol_context: ProtocolContext,
-    pub witnesses: Vec<
-        WitnessSpaceGroupElement<
+        EnhancedLanguage<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -50,6 +39,13 @@ pub struct Party<
             UnboundedWitnessSpaceGroupElement,
             Language,
         >,
+        ProtocolContext,
+    >,
+    #[allow(dead_code)]
+    pub(super) range_proof_decommitment_round_party: range::DecommitmentRoundParty<
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
     >,
 }
 
