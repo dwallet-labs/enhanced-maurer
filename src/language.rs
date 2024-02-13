@@ -309,7 +309,7 @@ pub trait DecomposableWitness<
         let delta = Self::new(delta.into(), public_parameters)?;
 
         let decomposed_witness = decomposed_witness
-            .into_iter()
+            .iter()
             .map(|witness| {
                 Self::new(
                     Uint::<WITNESS_LIMBS>::from(&Uint::<

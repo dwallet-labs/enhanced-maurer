@@ -1,6 +1,8 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
+#![allow(clippy::type_complexity)]
+
 use core::array;
 
 use commitment::GroupsPublicParametersAccessors as _;
@@ -245,7 +247,7 @@ impl<
             .schnorr_proof
             .verify(
                 protocol_context,
-                &enhanced_language_public_parameters,
+                enhanced_language_public_parameters,
                 statements,
             )
             .and(Ok(self.range_proof.verify(

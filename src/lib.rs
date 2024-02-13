@@ -1,6 +1,7 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
+pub mod aggregation;
 pub mod language;
 pub mod proof;
 
@@ -30,3 +31,15 @@ pub enum Error {
 
 /// Maurer result.
 pub type Result<T> = std::result::Result<T, Error>;
+
+impl TryInto<::proof::aggregation::Error> for Error {
+    type Error = Error;
+
+    fn try_into(self) -> std::result::Result<::proof::aggregation::Error, Self::Error> {
+        match self {
+            Error::Proof(::proof::Error::Aggregation(e)) => Ok(e),
+            Error::Maurer(maurer::Error::Aggregation(e)) => Ok(e),
+            e => Err(e),
+        }
+    }
+}
