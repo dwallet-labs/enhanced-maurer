@@ -1,5 +1,5 @@
 [package]
-name = "enhanced-maurer"
+name = "enhanced_maurer"
 version = "0.1.0"
 edition = "2021"
 license = "BSD-3-Clause-Clear"
@@ -11,9 +11,10 @@ serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 group = { git = "https://github.com/dwallet-labs/group.git" }
 proof = { git = "https://github.com/dwallet-labs/proof.git", branch = "bp-aggregation" }
+homomorphic_encryption = { git = "https://github.com/dwallet-labs/homomorphic-encryption.git" }
 commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
 maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "aggregation-tests" }
-tiresias = { git = "https://github.com/odsy-network/tiresias.git", branch = "test_exports", features = ["test_exports"] }
+tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", branch = "he", features = ["test_exports"] }
 thiserror = "1.0"
 
 criterion = { version = "0.5", features = ["html_reports"], optional = true }
@@ -22,6 +23,7 @@ rstest = { version = "0.18", optional = true }
 
 [dev-dependencies]
 rand_core = { version = "0.6", features = ["std"] }
+rstest = { version = "0.18" }
 
 [features]
 test_helpers = ["dep:criterion", "dep:rand_core", "dep:rstest", "proof/test_helpers"]
