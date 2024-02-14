@@ -469,7 +469,10 @@ pub(crate) mod tests {
     use tiresias::test_exports::N;
 
     use super::*;
-    use crate::language::tests::{generate_scalar_plaintext, RANGE_CLAIMS_PER_SCALAR};
+    use crate::{
+        aggregation::tests::setup_aggregation,
+        language::tests::{generate_scalar_plaintext, RANGE_CLAIMS_PER_SCALAR},
+    };
 
     pub type Lang = Language<
         { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
@@ -551,58 +554,185 @@ pub(crate) mod tests {
         );
     }
 
-    // #[rstest]
-    // #[case(1, 1)]
-    // #[case(1, 2)]
-    // #[case(2, 1)]
-    // #[case(2, 2)]
-    // #[case(8, 1)]
-    // #[case(8, 4)]
-    // fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
-    //     let language_public_parameters = public_parameters();
-    //
-    //     let witnesses =
-    //         iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
-    //             .take(number_of_parties)
-    //             .collect();
-    //
-    //     let unbounded_witness_public_parameters = language_public_parameters
-    //         .randomness_space_public_parameters()
-    //         .clone();
-    //
-    //     maurer::proof::enhanced::tests::aggregates::<
-    //         SOUND_PROOFS_REPETITIONS,
-    //         RANGE_CLAIMS_PER_SCALAR,
-    //         tiresias::RandomnessSpaceGroupElement,
-    //         Lang,
-    //     >(
-    //         unbounded_witness_public_parameters,
-    //         language_public_parameters,
-    //         witnesses,
-    //     );
-    // }
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 2)]
+    #[case(8, 1)]
+    #[case(8, 4)]
+    fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
+        let language_public_parameters = public_parameters();
 
-    // TODO
-    // #[rstest]
-    // #[case(1)]
-    // #[case(2)]
-    // #[case(3)]
-    // fn proof_with_out_of_range_witness_fails(#[case] batch_size: usize) {
-    //     let (language_public_parameters, range_proof_public_parameters) = public_parameters();
-    //
-    //     language::enhanced::tests::proof_with_out_of_range_witness_fails::<
-    //         SOUND_PROOFS_REPETITIONS,
-    //         { ristretto::SCALAR_LIMBS },
-    //         RANGE_CLAIMS_PER_SCALAR,
-    //         { range::bulletproofs::RANGE_CLAIM_LIMBS },
-    //
-    //         Lang,
-    //     >(
-    //         &language_public_parameters,
-    //         &range_proof_public_parameters,
-    //         batch_size,
-    //     )
-    // }
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        crate::aggregation::tests::aggregates::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+        );
+    }
+
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 2)]
+    #[case(8, 1)]
+    #[case(8, 4)]
+    fn wrong_decommitment_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let language_public_parameters = public_parameters();
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        let commitment_round_parties = setup_aggregation::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters,
+            witnesses,
+        );
+
+        proof::aggregation::test_helpers::wrong_decommitment_aborts_session_identifiably(
+            commitment_round_parties,
+        );
+    }
+
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 2)]
+    #[case(8, 1)]
+    #[case(8, 4)]
+    fn failed_proof_share_verification_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let language_public_parameters = public_parameters();
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        let commitment_round_parties = setup_aggregation::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters.clone(),
+            witnesses,
+        );
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let wrong_commitment_round_parties = setup_aggregation::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters,
+            witnesses,
+        );
+
+        proof::aggregation::test_helpers::failed_proof_share_verification_aborts_session_identifiably(
+            commitment_round_parties, wrong_commitment_round_parties
+        );
+    }
+
+    #[rstest]
+    #[case(1, 1)]
+    #[case(1, 2)]
+    #[case(2, 1)]
+    #[case(2, 2)]
+    #[case(8, 1)]
+    #[case(8, 4)]
+    fn unresponsive_parties_aborts_session_identifiably(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let language_public_parameters = public_parameters();
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        let commitment_round_parties = setup_aggregation::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters,
+            witnesses,
+        );
+
+        proof::aggregation::test_helpers::unresponsive_parties_aborts_session_identifiably(
+            commitment_round_parties,
+        );
+    }
+
+    #[test]
+    fn proof_with_out_of_range_witness_fails() {
+        let language_public_parameters = public_parameters();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        crate::proof::tests::proof_with_out_of_range_witness_fails::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+        )
+    }
 
     // #[rstest]
     // #[case(1)]

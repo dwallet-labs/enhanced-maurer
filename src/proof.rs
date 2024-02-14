@@ -426,13 +426,14 @@ pub(crate) mod tests {
     use std::marker::PhantomData;
 
     use maurer::language::GroupsPublicParametersAccessors;
-    use proof::range::bulletproofs::{RangeProof, COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
+    use proof::range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
     use rand_core::OsRng;
 
     use super::*;
     use crate::language::tests::enhanced_language_public_parameters;
 
-    #[allow(dead_code)]
+    // TODO: invalid_proof_fails_verification
+
     pub(crate) fn valid_proof_verifies<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -462,7 +463,7 @@ pub(crate) mod tests {
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
-            RangeProof,
+            bulletproofs::RangeProof,
             UnboundedWitnessSpaceGroupElement,
             Lang,
         >::generate_witnesses(
@@ -474,7 +475,7 @@ pub(crate) mod tests {
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
+            bulletproofs::RangeProof,
             UnboundedWitnessSpaceGroupElement,
             Lang,
             PhantomData<()>,
@@ -499,7 +500,6 @@ pub(crate) mod tests {
         );
     }
 
-    #[allow(dead_code)]
     pub(crate) fn proof_with_out_of_range_witness_fails<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -528,7 +528,7 @@ pub(crate) mod tests {
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
+            bulletproofs::RangeProof,
             UnboundedWitnessSpaceGroupElement,
             Lang,
         >::sample(
@@ -537,11 +537,11 @@ pub(crate) mod tests {
         )
         .unwrap()];
 
-        let (proof, statements) = Proof::<
+        let res = Proof::<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
+            bulletproofs::RangeProof,
             UnboundedWitnessSpaceGroupElement,
             Lang,
             PhantomData<()>,
@@ -550,23 +550,14 @@ pub(crate) mod tests {
             &enhanced_language_public_parameters,
             witnesses,
             &mut OsRng,
-        )
-        .unwrap(); // TODO: actually, this already should fail. Need to test verify seperately
+        );
 
         assert!(
             matches!(
-                proof
-                    .verify(
-                        &PhantomData,
-                        &enhanced_language_public_parameters,
-                        statements,
-                        &mut OsRng,
-                    )
-                    .err()
-                    .unwrap(),
-                Error::Proof(proof::Error::OutOfRange)
+                res.err().unwrap(),
+                Error::Proof(proof::Error::InvalidParameters)
             ),
-            "out of range error should fail on range verification"
+            "shouldn't be able to verify proofs on out of range witnesses"
         );
     }
 }

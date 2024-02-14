@@ -18,8 +18,8 @@ pub struct Party<
     const REPETITIONS: usize,
     const NUM_RANGE_CLAIMS: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-    UnboundedWitnessSpaceGroupElement: Samplable,
     RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+    UnboundedWitnessSpaceGroupElement: Samplable,
     Language: EnhanceableLanguage<
         REPETITIONS,
         NUM_RANGE_CLAIMS,
@@ -28,7 +28,6 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    #[allow(dead_code)]
     pub(super) maurer_decommitment_round_party: maurer::aggregation::decommitment_round::Party<
         REPETITIONS,
         EnhancedLanguage<
@@ -41,7 +40,6 @@ pub struct Party<
         >,
         ProtocolContext,
     >,
-    #[allow(dead_code)]
     pub(super) range_proof_decommitment_round_party: range::DecommitmentRoundParty<
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -53,8 +51,8 @@ impl<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
         const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-        UnboundedWitnessSpaceGroupElement: Samplable,
         RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: Samplable,
         Language: EnhanceableLanguage<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
@@ -68,8 +66,8 @@ impl<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            UnboundedWitnessSpaceGroupElement,
             RangeProof,
+            UnboundedWitnessSpaceGroupElement,
             Language,
             ProtocolContext,
         >,
@@ -78,8 +76,8 @@ impl<
         REPETITIONS,
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-        UnboundedWitnessSpaceGroupElement,
         RangeProof,
+        UnboundedWitnessSpaceGroupElement,
         Language,
         ProtocolContext,
     >
@@ -126,8 +124,8 @@ where
         REPETITIONS,
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-        UnboundedWitnessSpaceGroupElement,
         RangeProof,
+        UnboundedWitnessSpaceGroupElement,
         Language,
         ProtocolContext,
     >;
@@ -164,5 +162,44 @@ where
             (maurer_decommitment, range_proof_decommitment),
             proof_share_round_party,
         ))
+    }
+}
+
+#[cfg(test)]
+impl<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+        RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: Samplable,
+        Language: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            UnboundedWitnessSpaceGroupElement,
+        >,
+        ProtocolContext: Clone + Serialize,
+    > Clone
+    for Party<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+        ProtocolContext,
+    >
+where
+    range::DecommitmentRoundParty<
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+    >: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            maurer_decommitment_round_party: self.maurer_decommitment_round_party.clone(),
+            range_proof_decommitment_round_party: self.range_proof_decommitment_round_party.clone(),
+        }
     }
 }
