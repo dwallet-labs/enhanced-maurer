@@ -66,8 +66,8 @@ mod private {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-    pub struct Proof<SchnorrProof, RangeProof> {
-        pub(crate) schnorr_proof: SchnorrProof,
+    pub struct Proof<MaurerProof, RangeProof> {
+        pub(crate) maurer_proof: MaurerProof,
         pub(crate) range_proof: RangeProof,
     }
 }
@@ -159,7 +159,7 @@ impl<
         let (randomizers, statement_masks) =
             Self::sample_randomizers_and_statement_masks(enhanced_language_public_parameters, rng)?;
 
-        let (schnorr_proof, statements) = maurer::Proof::<
+        let (maurer_proof, statements) = maurer::Proof::<
             REPETITIONS,
             EnhancedLanguage<
                 REPETITIONS,
@@ -180,7 +180,7 @@ impl<
 
         Ok((
             Proof {
-                schnorr_proof,
+                maurer_proof,
                 range_proof,
             },
             statements,
@@ -225,14 +225,13 @@ impl<
         // Range check:
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
         // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
-
         let bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             RangeProof,
-        >()?;
+        >(true)?;
 
-        if !self.schnorr_proof.responses.into_iter().all(|response| {
+        if !self.maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
             let (commitment_message, _) = commitment_message.into();
 
@@ -244,7 +243,7 @@ impl<
         }
 
         Ok(self
-            .schnorr_proof
+            .maurer_proof
             .verify(
                 protocol_context,
                 enhanced_language_public_parameters,

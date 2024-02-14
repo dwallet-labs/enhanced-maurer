@@ -82,11 +82,29 @@ impl<
         Language,
         ProtocolContext,
     >
+where
+    Error: From<
+        range::AggregationError<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >,
+    >,
 {
     type Error = Error;
 
     type Decommitment = (
-        maurer::aggregation::Decommitment<REPETITIONS, Language>,
+        maurer::aggregation::Decommitment<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+        >,
         range::Decommitment<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -95,7 +113,17 @@ impl<
     );
 
     type ProofShare = (
-        maurer::aggregation::ProofShare<REPETITIONS, Language>,
+        maurer::aggregation::ProofShare<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+        >,
         range::ProofShare<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -115,9 +143,37 @@ impl<
 
     fn generate_proof_share(
         self,
-        _decommitments: HashMap<PartyID, Self::Decommitment>,
-        _rng: &mut impl CryptoRngCore,
+        decommitments: HashMap<PartyID, Self::Decommitment>,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::ProofShare, Self::ProofAggregationRoundParty), Self::Error> {
-        todo!()
+        let (maurer_decommitments, range_proof_decommitments) = decommitments
+            .into_iter()
+            .map(
+                |(party_id, (maurer_decommitment, range_proof_decommitment))| {
+                    (
+                        (party_id, maurer_decommitment),
+                        (party_id, range_proof_decommitment),
+                    )
+                },
+            )
+            .unzip();
+
+        let (maurer_proof_share, maurer_proof_aggregation_round_party) = self
+            .maurer_proof_share_round_party
+            .generate_proof_share(maurer_decommitments, rng)?;
+
+        let (range_proof_proof_share, range_proof_proof_aggregation_round_party) = self
+            .range_proof_proof_share_round_party
+            .generate_proof_share(range_proof_decommitments, rng)?;
+
+        let proof_aggregation_round_party = proof_aggregation_round::Party {
+            maurer_proof_aggregation_round_party,
+            range_proof_proof_aggregation_round_party,
+        };
+
+        Ok((
+            (maurer_proof_share, range_proof_proof_share),
+            proof_aggregation_round_party,
+        ))
     }
 }

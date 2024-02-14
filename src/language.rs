@@ -199,11 +199,17 @@ pub(crate) fn commitment_message_space_lower_bound<
     const NUM_RANGE_CLAIMS: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
     RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
->() -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
-    let delta_bits = usize::try_from(PartyID::BITS)
-        .ok()
-        .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
-        .ok_or(Error::InvalidPublicParameters)?;
+>(
+    account_for_aggregation: bool,
+) -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
+    let delta_bits = if account_for_aggregation {
+        usize::try_from(PartyID::BITS)
+            .ok()
+            .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
+            .ok_or(Error::InvalidPublicParameters)?
+    } else {
+        RangeProof::RANGE_CLAIM_BITS
+    };
 
     if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
         || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
@@ -605,7 +611,7 @@ impl<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             RangeProof,
-        >()?;
+        >(true)?;
 
         if order_lower_bound <= commitment_message_space_lower_bound {
             return Err(Error::InvalidPublicParameters);

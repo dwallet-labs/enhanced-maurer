@@ -5,10 +5,13 @@ use std::collections::HashMap;
 
 use crypto_bigint::rand_core::CryptoRngCore;
 use group::{PartyID, Samplable};
-use proof::{range, AggregatableRangeProof};
+use proof::{aggregation, range, AggregatableRangeProof};
 use serde::Serialize;
 
-use crate::{aggregation::Output, EnhanceableLanguage, EnhancedLanguage, Error};
+use crate::{
+    aggregation::Output, language::EnhancedLanguageStatementAccessors, EnhanceableLanguage,
+    EnhancedLanguage, Error, Proof,
+};
 
 pub struct Party<
     const REPETITIONS: usize,
@@ -80,11 +83,29 @@ impl<
         Language,
         ProtocolContext,
     >
+where
+    Error: From<
+        range::AggregationError<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >,
+    >,
 {
     type Error = Error;
 
     type ProofShare = (
-        maurer::aggregation::ProofShare<REPETITIONS, Language>,
+        maurer::aggregation::ProofShare<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+        >,
         range::ProofShare<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -94,8 +115,8 @@ impl<
 
     fn aggregate_proof_shares(
         self,
-        _proof_shares: HashMap<PartyID, Self::ProofShare>,
-        _rng: &mut impl CryptoRngCore,
+        proof_shares: HashMap<PartyID, Self::ProofShare>,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<
         Output<
             REPETITIONS,
@@ -108,6 +129,87 @@ impl<
         >,
         Self::Error,
     > {
-        todo!()
+        let (maurer_proof_shares, range_proof_proof_shares): (HashMap<_, _>, HashMap<_, _>) =
+            proof_shares
+                .into_iter()
+                .map(
+                    |(party_id, (maurer_proof_share, range_proof_proof_share))| {
+                        (
+                            (party_id, maurer_proof_share),
+                            (party_id, range_proof_proof_share),
+                        )
+                    },
+                )
+                .unzip();
+
+        let (maurer_proof, maurer_statements) = self
+            .maurer_proof_aggregation_round_party
+            .aggregate_proof_shares(maurer_proof_shares.clone(), rng)?;
+
+        let (range_proof, range_proof_commitments) = self
+            .range_proof_proof_aggregation_round_party
+            .aggregate_proof_shares(range_proof_proof_shares, rng)?;
+
+        let maurer_range_proof_commitments: Vec<_> = maurer_statements
+            .iter()
+            .map(|statement| statement.range_proof_commitment().clone())
+            .collect();
+
+        if range_proof_commitments != maurer_range_proof_commitments {
+            // TODO: Identifiable Abort
+            todo!()
+        }
+
+        // Range check:
+        // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
+        // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
+        let aggregated_bound = crate::language::commitment_message_space_lower_bound::<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >(true)?;
+
+        if !maurer_proof.responses.into_iter().all(|response| {
+            let (commitment_message, ..): (_, _) = response.into();
+            let (commitment_message, _) = commitment_message.into();
+
+            <[_; NUM_RANGE_CLAIMS]>::from(commitment_message)
+                .into_iter()
+                .all(|range_claim| range_claim.into() < aggregated_bound)
+        }) {
+            let proof_share_bound = crate::language::commitment_message_space_lower_bound::<
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+            >(false)?;
+
+            let malicious_parties: Vec<_> = maurer_proof_shares
+                .into_iter()
+                .filter(|(_, proof_share)| {
+                    !(<[_; REPETITIONS]>::from(proof_share.clone())
+                        .into_iter()
+                        .all(|response| {
+                            let (commitment_message, ..): (_, _) = response.into();
+                            let (commitment_message, _) = commitment_message.into();
+
+                            <[_; NUM_RANGE_CLAIMS]>::from(commitment_message)
+                                .into_iter()
+                                .all(|range_claim| range_claim.into() < proof_share_bound)
+                        }))
+                })
+                .map(|(party_id, _)| party_id)
+                .collect();
+
+            return Err(proof::Error::Aggregation(
+                aggregation::Error::ProofShareVerification(malicious_parties),
+            ))?;
+        }
+
+        let proof = Proof {
+            maurer_proof,
+            range_proof,
+        };
+
+        Ok((proof, maurer_statements))
     }
 }

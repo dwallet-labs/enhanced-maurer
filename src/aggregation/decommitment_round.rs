@@ -83,6 +83,14 @@ impl<
         Language,
         ProtocolContext,
     >
+where
+    Error: From<
+        range::AggregationError<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >,
+    >,
 {
     type Error = Error;
 
@@ -96,7 +104,17 @@ impl<
     );
 
     type Decommitment = (
-        maurer::aggregation::Decommitment<REPETITIONS, Language>,
+        maurer::aggregation::Decommitment<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+        >,
         range::Decommitment<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -116,9 +134,35 @@ impl<
 
     fn decommit_statements_and_statement_mask(
         self,
-        _commitments: HashMap<PartyID, Self::Commitment>,
-        _rng: &mut impl CryptoRngCore,
+        commitments: HashMap<PartyID, Self::Commitment>,
+        rng: &mut impl CryptoRngCore,
     ) -> Result<(Self::Decommitment, Self::ProofShareRoundParty)> {
-        todo!()
+        let (maurer_commitments, range_proof_commitments) = commitments
+            .into_iter()
+            .map(|(party_id, (maurer_commitment, range_proof_commitment))| {
+                (
+                    (party_id, maurer_commitment),
+                    (party_id, range_proof_commitment),
+                )
+            })
+            .unzip();
+
+        let (maurer_decommitment, maurer_proof_share_round_party) = self
+            .maurer_decommitment_round_party
+            .decommit_statements_and_statement_mask(maurer_commitments, rng)?;
+
+        let (range_proof_decommitment, range_proof_proof_share_round_party) = self
+            .range_proof_decommitment_round_party
+            .decommit_statements_and_statement_mask(range_proof_commitments, rng)?;
+
+        let proof_share_round_party = proof_share_round::Party {
+            maurer_proof_share_round_party,
+            range_proof_proof_share_round_party,
+        };
+
+        Ok((
+            (maurer_decommitment, range_proof_decommitment),
+            proof_share_round_party,
+        ))
     }
 }
