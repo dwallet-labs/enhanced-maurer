@@ -2,6 +2,7 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
 pub mod aggregation;
+pub mod committed_linear_evaluation;
 pub mod encryption_of_discrete_log;
 pub mod encryption_of_tuple;
 pub mod language;

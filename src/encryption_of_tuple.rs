@@ -11,7 +11,7 @@ use homomorphic_encryption::{AdditivelyHomomorphicEncryptionKey, GroupsPublicPar
 use maurer::{language::GroupsPublicParameters, Error, SOUND_PROOFS_REPETITIONS};
 use serde::{Deserialize, Serialize};
 
-use crate::{language::DecomposableWitness, EnhanceableLanguage, Proof};
+use crate::{language::DecomposableWitness, EnhanceableLanguage};
 
 /// Encryption of a Tuple Maurer Language
 ///
@@ -455,7 +455,7 @@ impl<CiphertextSpaceGroupElement: group::GroupElement>
     }
 }
 
-pub type EnhancedProof<
+pub type Proof<
     const NUM_RANGE_CLAIMS: usize,
     const MESSAGE_SPACE_SCALAR_LIMBS: usize,
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
@@ -465,7 +465,7 @@ pub type EnhancedProof<
     UnboundedWitnessSpaceGroupElement,
     RangeProof,
     ProtocolContext,
-> = Proof<
+> = crate::Proof<
     SOUND_PROOFS_REPETITIONS,
     NUM_RANGE_CLAIMS,
     MESSAGE_SPACE_SCALAR_LIMBS,
