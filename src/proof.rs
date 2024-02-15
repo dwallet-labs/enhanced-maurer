@@ -1,6 +1,8 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
+#![allow(clippy::type_complexity)]
+
 use core::array;
 
 use commitment::GroupsPublicParametersAccessors as _;
@@ -64,8 +66,8 @@ mod private {
     use super::*;
 
     #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Eq)]
-    pub struct Proof<SchnorrProof, RangeProof> {
-        pub(crate) schnorr_proof: SchnorrProof,
+    pub struct Proof<MaurerProof, RangeProof> {
+        pub(crate) maurer_proof: MaurerProof,
         pub(crate) range_proof: RangeProof,
     }
 }
@@ -223,14 +225,13 @@ impl<
         // Range check:
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
         // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
-
         let bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             RangeProof,
-        >()?;
+        >(true)?;
 
-        if !self.schnorr_proof.responses.into_iter().all(|response| {
+        if !self.maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
             let (commitment_message, _) = commitment_message.into();
 
@@ -242,10 +243,10 @@ impl<
         }
 
         Ok(self
-            .schnorr_proof
+            .maurer_proof
             .verify(
                 protocol_context,
-                &enhanced_language_public_parameters,
+                enhanced_language_public_parameters,
                 statements,
             )
             .and(Ok(self.range_proof.verify(
@@ -417,5 +418,146 @@ impl<
             .flat_map_results()?;
 
         Ok((randomizers, statement_masks))
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use std::marker::PhantomData;
+
+    use maurer::language::GroupsPublicParametersAccessors;
+    use proof::range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
+    use rand_core::OsRng;
+
+    use super::*;
+    use crate::language::tests::enhanced_language_public_parameters;
+
+    // TODO: invalid_proof_fails_verification
+
+    pub(crate) fn valid_proof_verifies<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+        witnesses: Vec<Lang::WitnessSpaceGroupElement>,
+    ) {
+        let enhanced_language_public_parameters = enhanced_language_public_parameters::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+        );
+
+        let witnesses = EnhancedLanguage::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >::generate_witnesses(
+            witnesses, &enhanced_language_public_parameters, &mut OsRng
+        )
+        .unwrap();
+
+        let (proof, statements) = Proof::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+            PhantomData<()>,
+        >::prove(
+            &PhantomData,
+            &enhanced_language_public_parameters,
+            witnesses,
+            &mut OsRng,
+        )
+        .unwrap();
+
+        assert!(
+            proof
+                .verify(
+                    &PhantomData,
+                    &enhanced_language_public_parameters,
+                    statements,
+                    &mut OsRng,
+                )
+                .is_ok(),
+            "valid enhanced proofs should verify",
+        );
+    }
+
+    pub(crate) fn proof_with_out_of_range_witness_fails<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+    ) {
+        let enhanced_language_public_parameters = enhanced_language_public_parameters::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+        );
+
+        let witnesses = vec![WitnessSpaceGroupElement::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >::sample(
+            enhanced_language_public_parameters.witness_space_public_parameters(),
+            &mut OsRng,
+        )
+        .unwrap()];
+
+        let res = Proof::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+            PhantomData<()>,
+        >::prove(
+            &PhantomData,
+            &enhanced_language_public_parameters,
+            witnesses,
+            &mut OsRng,
+        );
+
+        assert!(
+            matches!(
+                res.err().unwrap(),
+                Error::Proof(proof::Error::InvalidParameters)
+            ),
+            "shouldn't be able to verify proofs on out of range witnesses"
+        );
     }
 }
