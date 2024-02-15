@@ -17,8 +17,8 @@ pub struct Party<
     const REPETITIONS: usize,
     const NUM_RANGE_CLAIMS: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-    UnboundedWitnessSpaceGroupElement: Samplable,
     RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+    UnboundedWitnessSpaceGroupElement: Samplable,
     Language: EnhanceableLanguage<
         REPETITIONS,
         NUM_RANGE_CLAIMS,
@@ -53,8 +53,8 @@ impl<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
         const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-        UnboundedWitnessSpaceGroupElement: Samplable,
         RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: Samplable,
         Language: EnhanceableLanguage<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
@@ -68,8 +68,8 @@ impl<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            UnboundedWitnessSpaceGroupElement,
             RangeProof,
+            UnboundedWitnessSpaceGroupElement,
             Language,
             ProtocolContext,
         >,
@@ -78,8 +78,8 @@ impl<
         REPETITIONS,
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-        UnboundedWitnessSpaceGroupElement,
         RangeProof,
+        UnboundedWitnessSpaceGroupElement,
         Language,
         ProtocolContext,
     >
@@ -122,8 +122,8 @@ where
             REPETITIONS,
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            UnboundedWitnessSpaceGroupElement,
             RangeProof,
+            UnboundedWitnessSpaceGroupElement,
             Language,
             ProtocolContext,
         >,
@@ -142,9 +142,30 @@ where
                 )
                 .unzip();
 
+        let maurer_individual_commitments: HashMap<_, Vec<_>> = self
+            .maurer_proof_aggregation_round_party
+            .statements
+            .clone()
+            .into_iter()
+            .map(|(party_id, statements)| {
+                (
+                    party_id,
+                    statements
+                        .into_iter()
+                        .map(|statement| statement.range_proof_commitment().clone())
+                        .collect(),
+                )
+            })
+            .collect();
+
         let (maurer_proof, maurer_statements) = self
             .maurer_proof_aggregation_round_party
             .aggregate_proof_shares(maurer_proof_shares.clone(), rng)?;
+
+        let range_proof_individual_commitments = RangeProof::individual_commitments(
+            &self.range_proof_proof_aggregation_round_party,
+            maurer_statements.len(),
+        )?;
 
         let (range_proof, range_proof_commitments) = self
             .range_proof_proof_aggregation_round_party
@@ -156,8 +177,24 @@ where
             .collect();
 
         if range_proof_commitments != maurer_range_proof_commitments {
-            // TODO: Identifiable Abort
-            todo!()
+            let mut malicious_parties: Vec<_> = range_proof_individual_commitments
+                .into_iter()
+                .filter(|(party_id, range_proof_commitments)| {
+                    // Same parties participating in all rounds in both protocols, safe to
+                    // `.unwrap()`.
+                    maurer_individual_commitments
+                        .get(party_id)
+                        .map(|maurer_commitments| range_proof_commitments != maurer_commitments)
+                        .unwrap()
+                })
+                .map(|(party_id, _)| party_id)
+                .collect();
+
+            malicious_parties.sort();
+
+            return Err(Error::MismatchingRangeProofMaurerCommitments(
+                malicious_parties,
+            ));
         }
 
         // Range check:
@@ -211,5 +248,46 @@ where
         };
 
         Ok((proof, maurer_statements))
+    }
+}
+
+#[cfg(test)]
+impl<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+        RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: Samplable,
+        Language: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            UnboundedWitnessSpaceGroupElement,
+        >,
+        ProtocolContext: Clone + Serialize,
+    > Clone
+    for Party<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+        ProtocolContext,
+    >
+where
+    range::ProofAggregationRoundParty<
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+    >: Clone,
+{
+    fn clone(&self) -> Self {
+        Self {
+            maurer_proof_aggregation_round_party: self.maurer_proof_aggregation_round_party.clone(),
+            range_proof_proof_aggregation_round_party: self
+                .range_proof_proof_aggregation_round_party
+                .clone(),
+        }
     }
 }

@@ -5,6 +5,7 @@ pub mod aggregation;
 pub mod language;
 pub mod proof;
 
+use group::PartyID;
 pub use language::{EnhanceableLanguage, EnhancedLanguage};
 pub use proof::Proof;
 
@@ -21,6 +22,8 @@ pub enum Error {
     Serialization(#[from] serde_json::Error),
     #[error("randomizer(s) out of range: proof verification failed")]
     OutOfRange, // TODO: should name this modulation occurred?
+    #[error("parties {:?} sent mismatching range proof commitments in the Maurer aggregation and range proof aggregation protocols", .0)]
+    MismatchingRangeProofMaurerCommitments(Vec<PartyID>),
     #[error("invalid public parameters")]
     InvalidPublicParameters,
     #[error("invalid parameters")]
