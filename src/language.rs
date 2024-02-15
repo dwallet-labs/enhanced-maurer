@@ -199,11 +199,17 @@ pub(crate) fn commitment_message_space_lower_bound<
     const NUM_RANGE_CLAIMS: usize,
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
     RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
->() -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
-    let delta_bits = usize::try_from(PartyID::BITS)
-        .ok()
-        .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
-        .ok_or(Error::InvalidPublicParameters)?;
+>(
+    account_for_aggregation: bool,
+) -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
+    let delta_bits = if account_for_aggregation {
+        usize::try_from(PartyID::BITS)
+            .ok()
+            .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
+            .ok_or(Error::InvalidPublicParameters)?
+    } else {
+        RangeProof::RANGE_CLAIM_BITS
+    };
 
     if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
         || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
@@ -251,9 +257,9 @@ pub trait DecomposableWitness<
     const WITNESS_LIMBS: usize,
 >: KnownOrderScalar<WITNESS_LIMBS>
 {
-    fn valid_parameters(range_claim_bits: usize) -> Result<()> {
+    fn valid_parameters(range_claim_bits: usize) -> maurer::Result<()> {
         if range_claim_bits == 0 || RANGE_CLAIMS_PER_SCALAR == 0 {
-            return Err(Error::InvalidPublicParameters);
+            return Err(maurer::Error::InvalidPublicParameters);
         }
 
         // Check that the witness is big enough to hold the range claim representation of the
@@ -269,11 +275,11 @@ pub trait DecomposableWitness<
         if witness_too_small_for_scalar_range_claim_representation
             || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= range_claim_bits
         {
-            return Err(Error::InvalidPublicParameters);
+            return Err(maurer::Error::InvalidPublicParameters);
         }
 
         if WITNESS_LIMBS <= COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS {
-            return Err(Error::InvalidPublicParameters);
+            return Err(maurer::Error::InvalidPublicParameters);
         }
 
         Ok(())
@@ -282,7 +288,8 @@ pub trait DecomposableWitness<
     fn decompose(
         self,
         range_claim_bits: usize,
-    ) -> Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]> {
+    ) -> maurer::Result<[Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR]>
+    {
         Self::valid_parameters(range_claim_bits)?;
 
         let witness: Uint<WITNESS_LIMBS> = self.into();
@@ -302,14 +309,14 @@ pub trait DecomposableWitness<
              RANGE_CLAIMS_PER_SCALAR],
         public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
-    ) -> Result<Self> {
+    ) -> maurer::Result<Self> {
         Self::valid_parameters(range_claim_bits)?;
 
         let delta: Uint<WITNESS_LIMBS> = Uint::<WITNESS_LIMBS>::ONE << range_claim_bits;
         let delta = Self::new(delta.into(), public_parameters)?;
 
         let decomposed_witness = decomposed_witness
-            .into_iter()
+            .iter()
             .map(|witness| {
                 Self::new(
                     Uint::<WITNESS_LIMBS>::from(&Uint::<
@@ -332,11 +339,11 @@ pub trait DecomposableWitness<
                 + Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS
                 + 1
         {
-            return Err(Error::InvalidPublicParameters);
+            return Err(maurer::Error::InvalidPublicParameters);
         }
 
-        let polynomial =
-            Polynomial::try_from(decomposed_witness).map_err(|_| Error::InvalidParameters)?;
+        let polynomial = Polynomial::try_from(decomposed_witness)
+            .map_err(|_| maurer::Error::InvalidParameters)?;
 
         Ok(polynomial.evaluate(&delta))
     }
@@ -605,7 +612,7 @@ impl<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             RangeProof,
-        >()?;
+        >(true)?;
 
         if order_lower_bound <= commitment_message_space_lower_bound {
             return Err(Error::InvalidPublicParameters);
@@ -846,3 +853,84 @@ pub type StatementSpaceGroupElement<
         Language,
     >,
 >;
+
+#[cfg(test)]
+pub(crate) mod tests {
+    use crypto_bigint::U256;
+    use group::secp256k1;
+    use homomorphic_encryption::GroupsPublicParametersAccessors;
+    use proof::{
+        range,
+        range::bulletproofs::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS},
+    };
+    use rand_core::OsRng;
+    use tiresias::test_exports::N;
+
+    use super::*;
+
+    #[allow(dead_code)]
+    pub const RANGE_CLAIMS_PER_SCALAR: usize =
+        Uint::<{ secp256k1::SCALAR_LIMBS }>::BITS / RANGE_CLAIM_BITS;
+
+    #[allow(dead_code)]
+    pub(super) type EnhancedLang<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement,
+        Lang,
+    > = EnhancedLanguage<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+        range::bulletproofs::RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Lang,
+    >;
+
+    #[allow(dead_code)]
+    pub(crate) fn generate_scalar_plaintext() -> tiresias::PlaintextSpaceGroupElement {
+        let secp256k1_scalar_public_parameters = secp256k1::scalar::PublicParameters::default();
+
+        let scalar =
+            secp256k1::Scalar::sample(&secp256k1_scalar_public_parameters, &mut OsRng).unwrap();
+
+        let paillier_public_parameters =
+            tiresias::encryption_key::PublicParameters::new(N).unwrap();
+
+        tiresias::PlaintextSpaceGroupElement::new(
+            Uint::<{ tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS }>::from(&U256::from(scalar.value())),
+            paillier_public_parameters.plaintext_space_public_parameters(),
+        )
+        .unwrap()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn enhanced_language_public_parameters<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+    ) -> maurer::language::PublicParameters<
+        REPETITIONS,
+        EnhancedLang<REPETITIONS, NUM_RANGE_CLAIMS, UnboundedWitnessSpaceGroupElement, Lang>,
+    > {
+        PublicParameters::new::<
+            range::bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            range::bulletproofs::PublicParameters::default(),
+            language_public_parameters,
+        )
+        .unwrap()
+    }
+}
