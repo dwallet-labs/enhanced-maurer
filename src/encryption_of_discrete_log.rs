@@ -10,10 +10,13 @@ use serde::Serialize;
 
 use crate::{language::DecomposableWitness, EnhanceableLanguage};
 
-// TODO: doc that this is a language just for class groups, otherwise we need the enhanced version.
 /// Encryption of Discrete Log Maurer Language
 ///
 /// SECURITY NOTICE:
+/// This language implicitly assumes that the plaintext space of the encryption scheme and the
+/// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
+/// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
+///
 /// Because correctness and zero-knowledge is guaranteed for any group and additively homomorphic
 /// encryption scheme in this language, we choose to provide a fully generic
 /// implementation.
@@ -167,7 +170,7 @@ impl<
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
         >>::compose(
-            &decomposed_witness.map(|range_claim| (&range_claim).into()),
+            &decomposed_witness,
             language_public_parameters
                 .encryption_scheme_public_parameters
                 .plaintext_space_public_parameters(),

@@ -25,6 +25,10 @@ use crate::{language::DecomposableWitness, EnhanceableLanguage};
 /// free variable of an affine transformation.
 ///
 /// SECURITY NOTICE:
+/// This language implicitly assumes that the plaintext space of the encryption scheme and the
+/// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
+/// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
+///
 /// Because correctness and zero-knowledge is guaranteed for any group and additively homomorphic
 /// encryption scheme in this language, we choose to provide a fully generic
 /// implementation.
@@ -223,7 +227,6 @@ where
 
         let coefficients = coefficients
             .map(|coefficient| {
-                // TODO: here it's ok to go through modulation right?
                 let coefficient = coefficient.value().into().reduce(&group_order).into();
 
                 GroupElement::Scalar::new(
@@ -298,10 +301,10 @@ impl<
             .map(|coefficient| {
                 <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
                     RANGE_CLAIMS_PER_SCALAR,
-                    SCALAR_LIMBS,
+                    COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
                     { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
                 >>::compose(
-                    &coefficient.map(|range_claim| (&range_claim).into()),
+                    &coefficient,
                     language_public_parameters
                         .encryption_scheme_public_parameters
                         .plaintext_space_public_parameters(),
@@ -320,10 +323,10 @@ impl<
 
         let mask = <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
             RANGE_CLAIMS_PER_MASK,
-            SCALAR_LIMBS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
         >>::compose(
-            &mask.map(|range_claim| (&range_claim).into()),
+            &mask,
             language_public_parameters
                 .encryption_scheme_public_parameters
                 .plaintext_space_public_parameters(),
@@ -633,8 +636,7 @@ pub trait StatementAccessors<
     GroupElement: group::GroupElement,
 >
 {
-    // TODO: name
-    fn ciphertext(&self) -> &CiphertextSpaceGroupElement;
+    fn evaluated_ciphertext(&self) -> &CiphertextSpaceGroupElement;
 
     fn commitments(&self) -> &self_product::GroupElement<DIMENSION, GroupElement>;
 }
@@ -649,7 +651,7 @@ impl<
         self_product::GroupElement<DIMENSION, GroupElement>,
     >
 {
-    fn ciphertext(&self) -> &CiphertextSpaceGroupElement {
+    fn evaluated_ciphertext(&self) -> &CiphertextSpaceGroupElement {
         let (ciphertext, _): (&_, &_) = self.into();
 
         ciphertext
@@ -765,6 +767,7 @@ pub(crate) mod tests {
     pub(crate) const DIMENSION: usize = 2;
 
     // TODO: it's ok to take next power of two here right
+    // TODO: no MASK_LIMBS. Instead, have some upper bound on the upper bounds
     pub(crate) const RANGE_CLAIMS_PER_MASK: usize =
         (Uint::<MASK_LIMBS>::BITS / bulletproofs::RANGE_CLAIM_BITS).next_power_of_two();
 
