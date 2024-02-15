@@ -3,6 +3,7 @@
 
 pub mod aggregation;
 pub mod encryption_of_discrete_log;
+pub mod encryption_of_tuple;
 pub mod language;
 pub mod proof;
 
