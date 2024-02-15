@@ -9,7 +9,7 @@ pub mod language;
 pub mod proof;
 
 use group::PartyID;
-pub use language::{EnhanceableLanguage, EnhancedLanguage};
+pub use language::{EnhanceableLanguage, EnhancedLanguage, PublicParameters};
 pub use proof::Proof;
 
 /// Maurer error.
