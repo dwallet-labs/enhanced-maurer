@@ -22,7 +22,7 @@ pub enum Error {
     GroupInstantiation(#[from] group::Error),
     #[error("proof error")]
     Proof(#[from] ::proof::Error),
-    #[error("proof error")]
+    #[error("maurer error")]
     Maurer(#[from] maurer::Error),
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),
