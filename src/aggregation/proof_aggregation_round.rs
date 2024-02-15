@@ -27,7 +27,6 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    #[allow(dead_code)]
     pub(super) maurer_proof_aggregation_round_party:
         maurer::aggregation::proof_aggregation_round::Party<
             REPETITIONS,
@@ -41,7 +40,6 @@ pub struct Party<
             >,
             ProtocolContext,
         >,
-    #[allow(dead_code)]
     pub(super) range_proof_proof_aggregation_round_party: range::ProofAggregationRoundParty<
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
