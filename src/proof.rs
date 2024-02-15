@@ -30,21 +30,21 @@ use crate::{
 /// An Enhanced Batched Maurer Zero-Knowledge Proof.
 /// Implements Appendix B. Maurer Protocols in the paper.
 pub type Proof<
-    // Number of times this proof should be repeated to achieve sufficient security
+    // Number of times this proof should be repeated to achieve sufficient security.
     const REPETITIONS: usize,
-    // The number of witnesses with range claims
+    // The number of witnesses with range claims.
     const NUM_RANGE_CLAIMS: usize,
-    // The range proof commitment scheme's message space scalar size in limbs
+    // The range proof commitment scheme's message space scalar size in limbs.
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-    // The corresponding range proof
+    // The corresponding range proof.
     RangeProof,
-    // The unbounded witness group element
+    // The unbounded witness group element.
     UnboundedWitnessSpaceGroupElement,
-    // The enhanceable language we are proving
+    // The enhanceable language we are proving.
     Language,
     // A struct used by the protocol using this proof,
     // used to provide extra necessary context that will parameterize the proof (and thus verifier
-    // code) and be inserted to the Fiat-Shamir transcript
+    // code) and be inserted to the Fiat-Shamir transcript.
     ProtocolContext,
 > = private::Proof<
     maurer::Proof<
