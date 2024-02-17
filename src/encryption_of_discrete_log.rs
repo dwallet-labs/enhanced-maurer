@@ -441,8 +441,8 @@ pub type Proof<
     const SCALAR_LIMBS: usize,
     GroupElement,
     EncryptionKey,
-    UnboundedWitnessSpaceGroupElement,
     RangeProof,
+    UnboundedWitnessSpaceGroupElement,
     ProtocolContext,
 > = crate::Proof<
     SOUND_PROOFS_REPETITIONS,

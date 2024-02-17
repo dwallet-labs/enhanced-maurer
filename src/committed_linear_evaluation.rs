@@ -721,8 +721,8 @@ pub type Proof<
     const DIMENSION: usize,
     GroupElement,
     EncryptionKey,
-    UnboundedWitnessSpaceGroupElement,
     RangeProof,
+    UnboundedWitnessSpaceGroupElement,
     ProtocolContext,
 > = crate::Proof<
     SOUND_PROOFS_REPETITIONS,
