@@ -280,7 +280,7 @@ impl<
     >
     AsRef<
         GroupsPublicParameters<
-            direct_product::ThreeWayPublicParameters<
+            ThreeWayPublicParameters<
                 PlaintextSpacePublicParameters,
                 RandomnessSpacePublicParameters,
                 RandomnessSpacePublicParameters,

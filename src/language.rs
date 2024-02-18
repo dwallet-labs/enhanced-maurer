@@ -10,6 +10,7 @@ use group::{
     ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, PartyID, Samplable,
     StatisticalSecuritySizedNumber,
 };
+use homomorphic_encryption::AdditivelyHomomorphicEncryptionKey;
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
 use proof::range::{
     CommitmentSchemeCommitmentSpaceGroupElement, CommitmentSchemeCommitmentSpacePublicParameters,
@@ -193,6 +194,39 @@ impl<
     }
 }
 
+/// Compute the upper bound over the composed witness for which we proved range claims:
+/// $$ \log_2(\hat{\delta}) + (d-1) \cdot \log_2(\delta) + 1 $$
+pub fn composed_witness_upper_bound<
+    const RANGE_CLAIMS_PER_SCALAR: usize,
+    const UPPER_BOUND_LIMBS: usize,
+    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+    RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+>() -> Result<Uint<UPPER_BOUND_LIMBS>> {
+    let delta_bits = RangeProof::RANGE_CLAIM_BITS;
+
+    // Account for aggregation: $$ \hat{\Delta} = \Delta \cdot n_{max} $$.
+    let delta_hat_bits = usize::try_from(PartyID::BITS)
+        .ok()
+        .and_then(|party_id_bits| party_id_bits.checked_add(delta_bits));
+
+    // $$ (d-1) \cdot \log_2(\delta) $$
+    let num_range_claims_minus_one_by_delta_bits = RANGE_CLAIMS_PER_SCALAR
+        .checked_sub(1)
+        .and_then(|num_range_claims_minus_one| num_range_claims_minus_one.checked_mul(delta_bits))
+        .ok_or(Error::InvalidPublicParameters)?;
+
+    let upper_bound_bits = delta_hat_bits
+        .and_then(|bits| bits.checked_add(num_range_claims_minus_one_by_delta_bits))
+        .and_then(|bits| bits.checked_add(1))
+        .ok_or(Error::InvalidPublicParameters)?;
+
+    if upper_bound_bits >= Uint::<UPPER_BOUND_LIMBS>::BITS {
+        return Err(Error::InvalidPublicParameters);
+    }
+
+    Ok(Uint::<UPPER_BOUND_LIMBS>::ONE << upper_bound_bits)
+}
+
 /// Compute $$\Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega)
 /// \cdot 2^{\kappa+s+1} $$.
 pub(crate) fn commitment_message_space_lower_bound<
@@ -202,7 +236,7 @@ pub(crate) fn commitment_message_space_lower_bound<
 >(
     account_for_aggregation: bool,
 ) -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
-    let delta_bits = if account_for_aggregation {
+    let delta_hat_bits = if account_for_aggregation {
         usize::try_from(PartyID::BITS)
             .ok()
             .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
@@ -214,14 +248,14 @@ pub(crate) fn commitment_message_space_lower_bound<
     if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
         || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
         || RangeProof::RANGE_CLAIM_BITS == 0
-        || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= delta_bits
+        || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= delta_hat_bits
     {
         return Err(Error::InvalidPublicParameters);
     }
 
     // $$ \hat{\Delta} = \Delta \cdot n_{max} $$.
     let delta_hat: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
-        Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << delta_bits;
+        Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << delta_hat_bits;
 
     let number_of_range_claims =
         U64::from(u64::try_from(NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?);
