@@ -10,7 +10,6 @@ use group::{
     ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, PartyID, Samplable,
     StatisticalSecuritySizedNumber,
 };
-use homomorphic_encryption::AdditivelyHomomorphicEncryptionKey;
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
 use proof::range::{
     CommitmentSchemeCommitmentSpaceGroupElement, CommitmentSchemeCommitmentSpacePublicParameters,
@@ -42,9 +41,10 @@ pub struct EnhancedLanguage<
 }
 
 /// An Enhanceable Maurer Language.
-/// By itself implements the `maurer::Language` trait, although it might not actually be a valid
-/// language with no range claims. Defines transition methods to compose and decompose its witness
-/// from and to what we call a _decomposed witness_, which is a list of range claims of the range
+/// By itself implements the `maurer::Language` trait, although it might not be a valid
+/// language with no range of claims.
+/// Defines transition methods to compose and decompose its witness
+/// from and to what we call a _decomposed witness_, which is a list of range claims for the range
 /// proof's commitment scheme message space.
 pub trait EnhanceableLanguage<
     const REPETITIONS: usize,
