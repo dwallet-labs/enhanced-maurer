@@ -201,8 +201,7 @@ where
         let aggregated_bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-        >(true)?;
+        >(true, RangeProof::RANGE_CLAIM_BITS)?;
 
         if !maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
@@ -215,8 +214,7 @@ where
             let proof_share_bound = crate::language::commitment_message_space_lower_bound::<
                 NUM_RANGE_CLAIMS,
                 COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                RangeProof,
-            >(false)?;
+            >(false, RangeProof::RANGE_CLAIM_BITS)?;
 
             let malicious_parties: Vec<_> = maurer_proof_shares
                 .into_iter()

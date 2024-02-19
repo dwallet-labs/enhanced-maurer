@@ -7,8 +7,8 @@ use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentSche
 use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};
 use group::{
     direct_product, helpers::FlatMapResults, self_product, BoundedGroupElement,
-    ComputationalSecuritySizedNumber, GroupElement, KnownOrderScalar, PartyID, Samplable,
-    StatisticalSecuritySizedNumber,
+    ComputationalSecuritySizedNumber, GroupElement, KnownOrderGroupElement, KnownOrderScalar,
+    PartyID, Samplable, StatisticalSecuritySizedNumber,
 };
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
 use proof::range::{
@@ -71,6 +71,41 @@ pub trait EnhanceableLanguage<
         [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; NUM_RANGE_CLAIMS],
         UnboundedWitnessSpaceGroupElement,
     )>;
+
+    /// A helper function for validation of the group element order, that should occur inside
+    /// `compose_witness` and `decompose_witness`. The group element order isn't available to the
+    /// enhanced language, as it is language dependent, but in practice some enhanceable languages
+    /// require this check for correctness, so we provide this helper function.
+    fn valid_group_order<
+        const RANGE_CLAIMS_PER_SCALAR: usize,
+        const SCALAR_LIMBS: usize,
+        GroupElement: KnownOrderGroupElement<SCALAR_LIMBS>,
+    >(
+        range_claim_bits: usize,
+        group_public_parameters: &GroupElement::PublicParameters,
+    ) -> maurer::Result<()> {
+        let composed_witness_upper_bound_bits = RANGE_CLAIMS_PER_SCALAR
+            .checked_mul(range_claim_bits)
+            .ok_or(maurer::Error::InvalidPublicParameters)?;
+
+        if Uint::<SCALAR_LIMBS>::BITS < composed_witness_upper_bound_bits {
+            return Err(maurer::Error::InvalidPublicParameters);
+        }
+
+        let commitment_message_space_lower_bound = commitment_message_space_lower_bound::<
+            RANGE_CLAIMS_PER_SCALAR,
+            SCALAR_LIMBS,
+        >(true, range_claim_bits)
+        .map_err(|_| maurer::Error::InvalidPublicParameters)?;
+
+        let order = GroupElement::order_from_public_parameters(group_public_parameters);
+
+        if order <= commitment_message_space_lower_bound {
+            return Err(maurer::Error::InvalidPublicParameters);
+        }
+
+        Ok(())
+    }
 }
 
 impl<
@@ -231,31 +266,30 @@ pub fn composed_witness_upper_bound<
 /// \cdot 2^{\kappa+s+1} $$.
 pub(crate) fn commitment_message_space_lower_bound<
     const NUM_RANGE_CLAIMS: usize,
-    const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-    RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+    const SCALAR_LIMBS: usize,
 >(
     account_for_aggregation: bool,
-) -> Result<Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>> {
+    range_claim_bits: usize,
+) -> Result<Uint<SCALAR_LIMBS>> {
     let delta_hat_bits = if account_for_aggregation {
         usize::try_from(PartyID::BITS)
             .ok()
-            .and_then(|party_id_bits| party_id_bits.checked_add(RangeProof::RANGE_CLAIM_BITS))
+            .and_then(|party_id_bits| party_id_bits.checked_add(range_claim_bits))
             .ok_or(Error::InvalidPublicParameters)?
     } else {
-        RangeProof::RANGE_CLAIM_BITS
+        range_claim_bits
     };
 
-    if COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
-        || COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
-        || RangeProof::RANGE_CLAIM_BITS == 0
-        || Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS <= delta_hat_bits
+    if SCALAR_LIMBS <= ComputationalSecuritySizedNumber::LIMBS
+        || SCALAR_LIMBS <= StatisticalSecuritySizedNumber::LIMBS
+        || range_claim_bits == 0
+        || Uint::<SCALAR_LIMBS>::BITS <= delta_hat_bits
     {
         return Err(Error::InvalidPublicParameters);
     }
 
     // $$ \hat{\Delta} = \Delta \cdot n_{max} $$.
-    let delta_hat: Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS> =
-        Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE << delta_hat_bits;
+    let delta_hat: Uint<SCALAR_LIMBS> = Uint::<SCALAR_LIMBS>::ONE << delta_hat_bits;
 
     let number_of_range_claims =
         U64::from(u64::try_from(NUM_RANGE_CLAIMS).map_err(|_| Error::InvalidPublicParameters)?);
@@ -265,21 +299,17 @@ pub(crate) fn commitment_message_space_lower_bound<
             .checked_mul(&number_of_range_claims)
             .and_then(|bound| {
                 bound.checked_mul(
-                    &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                        << ComputationalSecuritySizedNumber::BITS),
+                    &(Uint::<SCALAR_LIMBS>::ONE << ComputationalSecuritySizedNumber::BITS),
                 )
             })
             .and_then(|bound| {
                 bound.checked_mul(
-                    &(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::ONE
-                        << StatisticalSecuritySizedNumber::BITS),
+                    &(Uint::<SCALAR_LIMBS>::ONE << StatisticalSecuritySizedNumber::BITS),
                 )
             })
             .and_then(|bound| {
                 // Account for the $$ +1 $$ in $$ 2^{\kappa+s+1} $$.
-                bound.checked_mul(&Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::from(
-                    2u8,
-                ))
+                bound.checked_mul(&Uint::<SCALAR_LIMBS>::from(2u8))
             }),
     )
     .ok_or(Error::InvalidPublicParameters)
@@ -645,8 +675,7 @@ impl<
         let commitment_message_space_lower_bound = commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-        >(true)?;
+        >(true, RangeProof::RANGE_CLAIM_BITS)?;
 
         if order_lower_bound <= commitment_message_space_lower_bound {
             return Err(Error::InvalidPublicParameters);

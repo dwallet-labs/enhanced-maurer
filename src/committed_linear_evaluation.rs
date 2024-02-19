@@ -281,6 +281,19 @@ impl<
         language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<Self::WitnessSpaceGroupElement> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            direct_product::GroupElement<
+                self_product::GroupElement<DIMENSION, GroupElement::Scalar>,
+                tiresias::RandomnessSpaceGroupElement,
+            >,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
+            range_claim_bits,
+            language_public_parameters.group_public_parameters(),
+        )?;
+
         if NUM_RANGE_CLAIMS != RANGE_CLAIMS_PER_SCALAR * DIMENSION + RANGE_CLAIMS_PER_MASK {
             return Err(maurer::Error::InvalidPublicParameters);
         }
@@ -346,7 +359,7 @@ impl<
 
     fn decompose_witness(
         witness: Self::WitnessSpaceGroupElement,
-        _language_public_parameters: &Self::PublicParameters,
+        language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<(
         [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; NUM_RANGE_CLAIMS],
@@ -355,6 +368,19 @@ impl<
             tiresias::RandomnessSpaceGroupElement,
         >,
     )> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            direct_product::GroupElement<
+                self_product::GroupElement<DIMENSION, GroupElement::Scalar>,
+                tiresias::RandomnessSpaceGroupElement,
+            >,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
+            range_claim_bits,
+            language_public_parameters.group_public_parameters(),
+        )?;
+
         if NUM_RANGE_CLAIMS != (RANGE_CLAIMS_PER_SCALAR * DIMENSION + RANGE_CLAIMS_PER_MASK) {
             return Err(maurer::Error::InvalidPublicParameters);
         }
