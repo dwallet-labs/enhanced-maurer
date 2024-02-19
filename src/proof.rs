@@ -28,7 +28,7 @@ use crate::{
 };
 
 /// An Enhanced Batched Maurer Zero-Knowledge Proof.
-/// Implements Appendix B. Maurer Protocols in the paper.
+/// Implements Section 4. Enhanced Batch Schnorr Protocols in the paper.
 pub type Proof<
     // Number of times this proof should be repeated to achieve sufficient security.
     const REPETITIONS: usize,
