@@ -19,7 +19,7 @@ pub enum Error {
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),
     #[error("randomizer(s) out of range: proof verification failed")]
-    OutOfRange, // TODO: should name this modulation occurred?
+    OutOfRange,
     #[error("invalid public parameters")]
     InvalidPublicParameters,
     #[error("invalid parameters")]
