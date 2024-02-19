@@ -96,6 +96,10 @@ pub type StatementSpaceGroupElement<
 ///
 /// In order to prove an affine transformation, set `ciphertexts[0]` to an encryption of one with
 /// randomness zero ($\Enc(1; 0)$).
+///
+/// The corresponding `lower_bounds` in `ciphertexts_and_lower_bounds` should be verified
+/// independently, e.g. by verifying (and following) a sequence of enhanced proofs over the
+/// homomorphic computations that yields them.
 pub type PublicParameters<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
     const SCALAR_LIMBS: usize,

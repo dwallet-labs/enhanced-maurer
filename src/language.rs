@@ -84,14 +84,6 @@ pub trait EnhanceableLanguage<
         range_claim_bits: usize,
         group_public_parameters: &GroupElement::PublicParameters,
     ) -> maurer::Result<()> {
-        let composed_witness_upper_bound_bits = RANGE_CLAIMS_PER_SCALAR
-            .checked_mul(range_claim_bits)
-            .ok_or(maurer::Error::InvalidPublicParameters)?;
-
-        if Uint::<SCALAR_LIMBS>::BITS < composed_witness_upper_bound_bits {
-            return Err(maurer::Error::InvalidPublicParameters);
-        }
-
         let commitment_message_space_lower_bound = commitment_message_space_lower_bound::<
             RANGE_CLAIMS_PER_SCALAR,
             SCALAR_LIMBS,
@@ -398,11 +390,21 @@ pub trait DecomposableWitness<
         // $P(x)$ is bounded by $2 * a_l * x^l$, and the log of that is $1 + log(a_l) + l*log(x)$.
         // For $x = \Delta$, $log(\Delta)$ is range_claim_bits. The coefficients $a_i$ are bounded
         // by `Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS`.
-        if Uint::<WITNESS_LIMBS>::BITS
-            <= range_claim_bits * RANGE_CLAIMS_PER_SCALAR
-                + Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS
-                + 1
-        {
+
+        // $$ (d-1) \cdot \log_2(\delta) $$
+        let num_range_claims_minus_one_by_delta_bits = RANGE_CLAIMS_PER_SCALAR
+            .checked_sub(1)
+            .and_then(|num_range_claims_minus_one| {
+                num_range_claims_minus_one.checked_mul(range_claim_bits)
+            })
+            .ok_or(Error::InvalidPublicParameters)?;
+
+        let upper_bound_bits = num_range_claims_minus_one_by_delta_bits
+            .checked_add(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS)
+            .and_then(|bits| bits.checked_add(1))
+            .ok_or(Error::InvalidPublicParameters)?;
+
+        if Uint::<WITNESS_LIMBS>::BITS <= upper_bound_bits {
             return Err(maurer::Error::InvalidPublicParameters);
         }
 
