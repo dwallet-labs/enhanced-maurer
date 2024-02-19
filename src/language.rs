@@ -397,12 +397,12 @@ pub trait DecomposableWitness<
             .and_then(|num_range_claims_minus_one| {
                 num_range_claims_minus_one.checked_mul(range_claim_bits)
             })
-            .ok_or(Error::InvalidPublicParameters)?;
+            .ok_or(maurer::Error::InvalidPublicParameters)?;
 
         let upper_bound_bits = num_range_claims_minus_one_by_delta_bits
             .checked_add(Uint::<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>::BITS)
             .and_then(|bits| bits.checked_add(1))
-            .ok_or(Error::InvalidPublicParameters)?;
+            .ok_or(maurer::Error::InvalidPublicParameters)?;
 
         if Uint::<WITNESS_LIMBS>::BITS <= upper_bound_bits {
             return Err(maurer::Error::InvalidPublicParameters);
