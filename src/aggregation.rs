@@ -53,7 +53,6 @@ pub(crate) mod tests {
         EnhanceableLanguage, EnhancedLanguage,
     };
 
-    // TODO: move to aggregation
     pub(crate) fn setup_aggregation<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,

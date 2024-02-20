@@ -28,23 +28,23 @@ use crate::{
 };
 
 /// An Enhanced Batched Maurer Zero-Knowledge Proof.
-/// Implements Appendix B. Maurer Protocols in the paper.
+/// Implements Section 4. Enhanced Batch Schnorr Protocols in the paper.
 pub type Proof<
-    // Number of times this proof should be repeated to achieve sufficient security
+    // Number of times this proof should be repeated to achieve sufficient security.
     const REPETITIONS: usize,
-    // The number of witnesses with range claims
+    // The number of witnesses with range claims.
     const NUM_RANGE_CLAIMS: usize,
-    // The range proof commitment scheme's message space scalar size in limbs
+    // The range proof commitment scheme's message space scalar size in limbs.
     const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
-    // The corresponding range proof
+    // The corresponding range proof.
     RangeProof,
-    // The unbounded witness group element
+    // The unbounded witness group element.
     UnboundedWitnessSpaceGroupElement,
-    // The enhanceable language we are proving
+    // The enhanceable language we are proving.
     Language,
     // A struct used by the protocol using this proof,
     // used to provide extra necessary context that will parameterize the proof (and thus verifier
-    // code) and be inserted to the Fiat-Shamir transcript
+    // code) and be inserted to the Fiat-Shamir transcript.
     ProtocolContext,
 > = private::Proof<
     maurer::Proof<
@@ -224,12 +224,21 @@ impl<
 
         // Range check:
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
-        // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
+        // Range check for enhanced Maurer. Protocol~7 suggests the formula below for non-batched
+        // version: $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot
+        // 2^{\kappa+s+1} $$ The range check for the batched protocol with batch size = m,
+        // appears in Appendix~K. Seemingly, to get a 2^-s' statistical zk, one must use
+        // $2^s = m2^s'$ throughout the protocol (sampling a greater mask, checking a
+        // broader range, and requiring a greater lower bound for the range-proof commitment
+        // space). Nevertheless, this is also the case when running m non-batched zk protocols in
+        // parallel. So in general, setting s should take into consideration the number of signing
+        // protocols expected in the whole system, regardless of whether proofs are batched
+        // or not.
+
         let bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-        >(true)?;
+        >(true, RangeProof::RANGE_CLAIM_BITS)?;
 
         if !self.maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
