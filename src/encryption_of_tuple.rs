@@ -19,7 +19,8 @@ use crate::{language::DecomposableWitness, EnhanceableLanguage};
 /// This language implicitly assumes that the plaintext space of the encryption scheme and the
 /// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
 /// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
-///
+/// SECURITY NOTICE (2):
+/// Furthermore, even when using `EnhancedLanguage`, note that ENC_DH proves a correct computation that is not a secure function evaluation. That is, the result is not safe to decrypt, as it does not hide the number of arithmetic reductions mod q. For secure function evaluation, use `DComEval` (enhanced) language.
 /// Because correctness and zero-knowledge is guaranteed for any group and additively homomorphic
 /// encryption scheme in this language, we choose to provide a fully generic
 /// implementation.
