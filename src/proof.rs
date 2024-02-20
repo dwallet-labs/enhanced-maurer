@@ -159,7 +159,7 @@ impl<
         let (randomizers, statement_masks) =
             Self::sample_randomizers_and_statement_masks(enhanced_language_public_parameters, rng)?;
 
-        let (schnorr_proof, statements) = maurer::Proof::<
+        let (maurer_proof, statements) = maurer::Proof::<
             REPETITIONS,
             EnhancedLanguage<
                 REPETITIONS,
@@ -180,7 +180,7 @@ impl<
 
         Ok((
             Proof {
-                schnorr_proof,
+                maurer_proof,
                 range_proof,
             },
             statements,
@@ -224,20 +224,21 @@ impl<
 
         // Range check:
         // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
-        // Range check for enhanced Maurer. Protocol~7 suggests the formula below for non-batched version:
-        // $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot 2^{\kappa+s+1} $$
-        // The range check for the batched protocol with batch size = m, appears in Appendix~K.
-        // Seemingly, to get a 2^-s' statistical zk, one must use $2^s = m2^s'$ throughout the protocol (sampling 
-        // a greater mask, checking a broader range, and requiring a greater lower bound for the range-proof 
-        // commitment space). Nevertheless, this is also the case when running m non-batched zk protocols in 
-        // parallel. So in general, setting s should take into consideration the number of signing protocols expected in
-        // the whole system, regardless of whether proofs are batched or not.
-        
+        // Range check for enhanced Maurer. Protocol~7 suggests the formula below for non-batched
+        // version: $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot
+        // 2^{\kappa+s+1} $$ The range check for the batched protocol with batch size = m,
+        // appears in Appendix~K. Seemingly, to get a 2^-s' statistical zk, one must use
+        // $2^s = m2^s'$ throughout the protocol (sampling a greater mask, checking a
+        // broader range, and requiring a greater lower bound for the range-proof commitment
+        // space). Nevertheless, this is also the case when running m non-batched zk protocols in
+        // parallel. So in general, setting s should take into consideration the number of signing
+        // protocols expected in the whole system, regardless of whether proofs are batched
+        // or not.
+
         let bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-        >(true)?;
+        >(true, RangeProof::RANGE_CLAIM_BITS)?;
 
         if !self.maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
@@ -442,6 +443,7 @@ pub(crate) mod tests {
 
     // TODO: invalid_proof_fails_verification
 
+    #[allow(dead_code)]
     pub(crate) fn valid_proof_verifies<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -508,6 +510,7 @@ pub(crate) mod tests {
         );
     }
 
+    #[allow(dead_code)]
     pub(crate) fn proof_with_out_of_range_witness_fails<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
