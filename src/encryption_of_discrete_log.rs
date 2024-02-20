@@ -752,25 +752,4 @@ pub(crate) mod tests {
         )
     }
 
-    // #[rstest]
-    // #[case(1)]
-    // #[case(2)]
-    // #[case(3)]
-    // fn invalid_proof_fails_verification(#[case] batch_size: usize) {
-    //     let language_public_parameters = public_parameters();
-    //
-    //     // TODO: have invalid points
-    //
-    //     // TODO: this test passes even when other tests fails, we should check why.
-    //
-    //     // No invalid values as secp256k1 statically defines group,
-    //     // `k256::AffinePoint` assures deserialized values are on curve,
-    //     // and `Value` can only be instantiated through deserialization
-    //     language::tests::invalid_proof_fails_verification::<SOUND_PROOFS_REPETITIONS, Lang>(
-    //         None,
-    //         None,
-    //         language_public_parameters,
-    //         batch_size,
-    //     )
-    // }
 }
