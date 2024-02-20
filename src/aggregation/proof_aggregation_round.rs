@@ -27,7 +27,6 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    #[allow(dead_code)]
     pub(super) maurer_proof_aggregation_round_party:
         maurer::aggregation::proof_aggregation_round::Party<
             REPETITIONS,
@@ -41,7 +40,6 @@ pub struct Party<
             >,
             ProtocolContext,
         >,
-    #[allow(dead_code)]
     pub(super) range_proof_proof_aggregation_round_party: range::ProofAggregationRoundParty<
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -203,8 +201,7 @@ where
         let aggregated_bound = crate::language::commitment_message_space_lower_bound::<
             NUM_RANGE_CLAIMS,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            RangeProof,
-        >(true)?;
+        >(true, RangeProof::RANGE_CLAIM_BITS)?;
 
         if !maurer_proof.responses.into_iter().all(|response| {
             let (commitment_message, ..): (_, _) = response.into();
@@ -217,8 +214,7 @@ where
             let proof_share_bound = crate::language::commitment_message_space_lower_bound::<
                 NUM_RANGE_CLAIMS,
                 COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                RangeProof,
-            >(false)?;
+            >(false, RangeProof::RANGE_CLAIM_BITS)?;
 
             let malicious_parties: Vec<_> = maurer_proof_shares
                 .into_iter()
