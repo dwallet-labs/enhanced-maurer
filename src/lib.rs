@@ -27,7 +27,7 @@ pub enum Error {
     #[error("serialization/deserialization error")]
     Serialization(#[from] serde_json::Error),
     #[error("randomizer(s) out of range: proof verification failed")]
-    OutOfRange, // TODO: should name this modulation occurred?
+    OutOfRange,
     #[error("parties {:?} sent mismatching range proof commitments in the Maurer aggregation and range proof aggregation protocols", .0)]
     MismatchingRangeProofMaurerCommitments(Vec<PartyID>),
     #[error("invalid public parameters")]
