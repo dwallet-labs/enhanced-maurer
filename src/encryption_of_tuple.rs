@@ -73,6 +73,9 @@ pub type StatementSpaceGroupElement<
 >;
 
 /// The Public Parameters of the Encryption of a Tuple Maurer Language.
+/// The `lower_bound` of `ciphertext` should be verified independently,
+/// e.g. by verifying (and following) a sequence of enhanced proofs over the homomorphic
+/// computations that yields it.
 pub type PublicParameters<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
     const SCALAR_LIMBS: usize,
@@ -146,7 +149,6 @@ where
                 .ciphertext_space_public_parameters(),
         )?;
 
-        // TODO: name?
         let encrypted_multiplicand = encryption_key.encrypt_with_randomness(
             witness.multiplicand(),
             witness.multiplicand_randomness(),
@@ -156,7 +158,6 @@ where
         // no mask needed, as we're not doing any homomorphic additions? TODO: why
         let mask = witness.multiplicand().neutral();
 
-        // TODO: name?
         let encrypted_product = encryption_key
             .securely_evaluate_linear_combination_with_randomness(
                 &[*witness.multiplicand()],
@@ -198,6 +199,16 @@ impl<
         language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<Self::WitnessSpaceGroupElement> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement::Scalar>(
+            range_claim_bits,
+            &language_public_parameters.scalar_group_public_parameters,
+        )?;
+
         let multiplicand = <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
             RANGE_CLAIMS_PER_SCALAR,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -218,12 +229,22 @@ impl<
 
     fn decompose_witness(
         witness: Self::WitnessSpaceGroupElement,
-        _language_public_parameters: &Self::PublicParameters,
+        language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<(
         [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR],
         self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
     )> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement::Scalar>(
+            range_claim_bits,
+            &language_public_parameters.scalar_group_public_parameters,
+        )?;
+
         Ok((
             witness.multiplicand().decompose(range_claim_bits)?,
             [
@@ -263,7 +284,6 @@ pub(super) mod private {
         >,
         pub scalar_group_public_parameters: ScalarPublicParameters,
         pub encryption_scheme_public_parameters: EncryptionKeyPublicParameters,
-        // TODO: name
         pub ciphertext: CiphertextSpaceValue,
         pub upper_bound: Uint<PLAINTEXT_SPACE_SCALAR_LIMBS>,
     }
@@ -280,7 +300,7 @@ impl<
     >
     AsRef<
         GroupsPublicParameters<
-            direct_product::ThreeWayPublicParameters<
+            ThreeWayPublicParameters<
                 PlaintextSpacePublicParameters,
                 RandomnessSpacePublicParameters,
                 RandomnessSpacePublicParameters,
@@ -464,8 +484,8 @@ pub type Proof<
     const SCALAR_LIMBS: usize,
     GroupElement,
     EncryptionKey,
-    UnboundedWitnessSpaceGroupElement,
     RangeProof,
+    UnboundedWitnessSpaceGroupElement,
     ProtocolContext,
 > = crate::Proof<
     SOUND_PROOFS_REPETITIONS,
