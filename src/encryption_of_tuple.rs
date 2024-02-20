@@ -20,9 +20,13 @@ use crate::{language::DecomposableWitness, EnhanceableLanguage};
 /// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
 /// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
 ///
-/// Because correctness and zero-knowledge is guaranteed for any group and additively homomorphic
-/// encryption scheme in this language, we choose to provide a fully generic
-/// implementation.
+/// SECURITY NOTICE (2):
+/// Furthermore, even when using `EnhancedLanguage`, note that ENC_DH proves a correct computation
+/// that is not a secure function evaluation. That is, the result is not safe to decrypt, as it does
+/// not hide the number of arithmetic reductions mod q. For secure function evaluation, use
+/// `DComEval` (enhanced) language. Because correctness and zero-knowledge is guaranteed for any
+/// group and additively homomorphic encryption scheme in this language, we choose to provide a
+/// fully generic implementation.
 ///
 /// However knowledge-soundness proofs are group and encryption scheme dependent, and thus we can
 /// only assure security for groups and encryption schemes for which we know how to prove it.
@@ -155,7 +159,7 @@ where
             &language_public_parameters.encryption_scheme_public_parameters,
         );
 
-        // no mask needed, as we're not doing any homomorphic additions? TODO: why
+        // no mask needed, as we don't need circuit privacy.
         let mask = witness.multiplicand().neutral();
 
         let encrypted_product = encryption_key
@@ -812,26 +816,4 @@ pub(crate) mod tests {
             language_public_parameters,
         )
     }
-
-    // #[rstest]
-    // #[case(1)]
-    // #[case(2)]
-    // #[case(3)]
-    // fn invalid_proof_fails_verification(#[case] batch_size: usize) {
-    //     let language_public_parameters = public_parameters();
-    //
-    //     // TODO: have invalid points
-    //
-    //     // TODO: this test passes even when other tests fails, we should check why.
-    //
-    //     // No invalid values as secp256k1 statically defines group,
-    //     // `k256::AffinePoint` assures deserialized values are on curve,
-    //     // and `Value` can only be instantiated through deserialization
-    //     language::tests::invalid_proof_fails_verification::<SOUND_PROOFS_REPETITIONS, Lang>(
-    //         None,
-    //         None,
-    //         language_public_parameters,
-    //         batch_size,
-    //     )
-    // }
 }

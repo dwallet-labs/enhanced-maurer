@@ -581,6 +581,8 @@ pub struct PublicParameters<
     >,
     pub range_proof_public_parameters: RangeProofPublicParameters,
     language_public_parameters: LanguagePublicParameters,
+    // This is just a string saying "enhanced", the idea is we want to add that to the transcript.
+    enhanced_string_for_fiat_shamir: String,
 }
 
 impl<
@@ -710,6 +712,7 @@ impl<
             },
             range_proof_public_parameters,
             language_public_parameters,
+            enhanced_string_for_fiat_shamir: "enhanced".to_string(),
         })
     }
 
