@@ -13,7 +13,7 @@ group = { git = "https://github.com/dwallet-labs/group.git" }
 proof = { git = "https://github.com/dwallet-labs/proof.git", branch = "bp-aggregation" }
 homomorphic_encryption = { git = "https://github.com/dwallet-labs/homomorphic-encryption.git" }
 commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "aggregation-tests" }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git" }
 tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", branch = "he", features = ["test_exports"] }
 thiserror = "1.0"
 
@@ -26,8 +26,9 @@ rstest = { version = "0.18", optional = true }
 rand_core = { version = "0.6", features = ["std"] }
 rstest = { version = "0.18" }
 proof = { git = "https://github.com/dwallet-labs/proof.git", branch = "bp-aggregation", features = ["test_helpers"] }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "aggregation-tests", features = ["test_helpers"] }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git", features = ["test_helpers"] }
 
 [features]
+default = []
 test_helpers = ["dep:criterion", "dep:rand_core", "dep:rstest", "proof/test_helpers"]
 benchmarking = ["test_helpers"]
