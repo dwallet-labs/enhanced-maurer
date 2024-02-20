@@ -165,6 +165,16 @@ impl<
         language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<Self::WitnessSpaceGroupElement> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            tiresias::RandomnessSpaceGroupElement,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
+            range_claim_bits,
+            language_public_parameters.group_public_parameters(),
+        )?;
+
         let discrete_log = <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
             RANGE_CLAIMS_PER_SCALAR,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
@@ -182,12 +192,22 @@ impl<
 
     fn decompose_witness(
         witness: Self::WitnessSpaceGroupElement,
-        _language_public_parameters: &Self::PublicParameters,
+        language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<(
         [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR],
         tiresias::RandomnessSpaceGroupElement,
     )> {
+        <Self as EnhanceableLanguage<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            tiresias::RandomnessSpaceGroupElement,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
+            range_claim_bits,
+            language_public_parameters.group_public_parameters(),
+        )?;
+
         Ok((
             witness.discrete_log().decompose(range_claim_bits)?,
             *witness.randomness(),
@@ -305,6 +325,7 @@ impl<
         scalar_group_public_parameters: ScalarPublicParameters,
         group_public_parameters: GroupPublicParameters,
         encryption_scheme_public_parameters: EncryptionKeyPublicParameters,
+        generator: GroupElementValue,
     ) -> Self
     where
         GroupElement: group::GroupElement<Value = GroupElementValue, PublicParameters = GroupPublicParameters>
@@ -322,9 +343,6 @@ impl<
         EncryptionKey::CiphertextSpaceGroupElement:
             group::GroupElement<PublicParameters = CiphertextSpacePublicParameters>,
     {
-        // TODO: maybe we don't want the generator all the time?
-        let generator =
-            GroupElement::generator_value_from_public_parameters(&group_public_parameters);
         Self {
             groups_public_parameters: GroupsPublicParameters {
                 witness_space_public_parameters: (
@@ -441,8 +459,8 @@ pub type Proof<
     const SCALAR_LIMBS: usize,
     GroupElement,
     EncryptionKey,
-    UnboundedWitnessSpaceGroupElement,
     RangeProof,
+    UnboundedWitnessSpaceGroupElement,
     ProtocolContext,
 > = crate::Proof<
     SOUND_PROOFS_REPETITIONS,
@@ -488,6 +506,8 @@ pub(crate) mod tests {
         let paillier_public_parameters =
             tiresias::encryption_key::PublicParameters::new(N).unwrap();
 
+        let generator = secp256k1_group_public_parameters.generator;
+
         PublicParameters::<
             { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
             { secp256k1::SCALAR_LIMBS },
@@ -502,6 +522,7 @@ pub(crate) mod tests {
             secp256k1_scalar_public_parameters,
             secp256k1_group_public_parameters,
             paillier_public_parameters,
+            generator,
         )
     }
 
