@@ -1,0 +1,27 @@
+// Author: dWallet Labs, Ltd.
+// SPDX-License-Identifier: BSD-3-Clause-Clear
+
+pub mod language;
+pub use language::{EnhanceableLanguage, EnhancedLanguage};
+
+/// Maurer error.
+#[derive(thiserror::Error, Debug)]
+pub enum Error {
+    #[error("group error")]
+    GroupInstantiation(#[from] group::Error),
+    #[error("proof error")]
+    Proof(#[from] ::proof::Error),
+    #[error("maurer error")]
+    Maurer(#[from] maurer::Error),
+    #[error("serialization/deserialization error")]
+    Serialization(#[from] serde_json::Error),
+    #[error("invalid public parameters")]
+    InvalidPublicParameters,
+    #[error("invalid parameters")]
+    InvalidParameters,
+    #[error("an internal error that should never have happened and signifies a bug")]
+    InternalError,
+}
+
+/// Maurer result.
+pub type Result<T> = std::result::Result<T, Error>;
