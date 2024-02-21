@@ -223,7 +223,7 @@ impl<
             .collect();
 
         // Range check:
-        // Z < delta_hat * NUM_CONSTRAINED_WITNESS * (2^(kappa+s+1)
+        // Z < delta \cdot PARTY_ID_MAX \cdot NUM_CONSTRAINED_WITNESS \cdot (2^(kappa+s+1)
         // Range check for enhanced Maurer. Protocol~7 suggests the formula below for non-batched
         // version: $$ Z < \Delta \cdot n_{max} \cdot d \cdot (\ell + \ell_\omega) \cdot
         // 2^{\kappa+s+1} $$ The range check for the batched protocol with batch size = m,
