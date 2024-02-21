@@ -43,8 +43,14 @@ pub struct EnhancedLanguage<
 /// An Enhanceable Maurer Language.
 /// By itself implements the `maurer::Language` trait, although it might not actually be a valid
 /// language with no range claims. Defines transition methods to compose and decompose its witness
-/// from and to what we call a _decomposed witness_, which is a list of range claims of the range
+/// from and to what we call a _decomposed witness_, which is a list of range claims over the range
 /// proof's commitment scheme message space.
+///
+/// Essentially, in case a witness is bigger than the size of the range-proof commitment scheme
+/// message space, it is breaked-down (decomposed) into multiple smaller range claims that do fit in
+/// the commitment. This is done by viewing the witness w in base \Delta such that
+/// w=\sum_{i}{w_i}\Delta^i, with /// \Delta \ll \abs{\calM_\pp}.
+/// The decomposed witness (w_i)_i can then be composed back into w.
 pub trait EnhanceableLanguage<
     const REPETITIONS: usize,
     const NUM_RANGE_CLAIMS: usize,
@@ -935,9 +941,11 @@ pub(crate) mod tests {
 
     use super::*;
 
+    #[allow(dead_code)]
     pub const RANGE_CLAIMS_PER_SCALAR: usize =
         Uint::<{ secp256k1::SCALAR_LIMBS }>::BITS / RANGE_CLAIM_BITS;
 
+    #[allow(dead_code)]
     pub(super) type EnhancedLang<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -952,6 +960,7 @@ pub(crate) mod tests {
         Lang,
     >;
 
+    #[allow(dead_code)]
     pub(crate) fn generate_scalar_plaintext() -> tiresias::PlaintextSpaceGroupElement {
         let secp256k1_scalar_public_parameters = secp256k1::scalar::PublicParameters::default();
 
@@ -968,6 +977,7 @@ pub(crate) mod tests {
         .unwrap()
     }
 
+    #[allow(dead_code)]
     pub(crate) fn enhanced_language_public_parameters<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
