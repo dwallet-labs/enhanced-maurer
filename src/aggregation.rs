@@ -53,7 +53,6 @@ pub(crate) mod tests {
         EnhanceableLanguage, EnhancedLanguage,
     };
 
-    #[allow(dead_code)]
     pub(crate) fn setup_aggregation<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -137,7 +136,6 @@ pub(crate) mod tests {
             .collect()
     }
 
-    #[allow(dead_code)]
     pub(crate) fn aggregates<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,

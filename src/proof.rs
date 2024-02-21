@@ -443,7 +443,6 @@ pub(crate) mod tests {
 
     // TODO: invalid_proof_fails_verification
 
-    #[allow(dead_code)]
     pub(crate) fn valid_proof_verifies<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
@@ -510,7 +509,6 @@ pub(crate) mod tests {
         );
     }
 
-    #[allow(dead_code)]
     pub(crate) fn proof_with_out_of_range_witness_fails<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
