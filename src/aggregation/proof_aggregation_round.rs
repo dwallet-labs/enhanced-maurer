@@ -27,19 +27,18 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
-    pub(super) maurer_proof_aggregation_round_party:
-        maurer::aggregation::proof_aggregation_round::Party<
+    pub maurer_proof_aggregation_round_party: maurer::aggregation::proof_aggregation_round::Party<
+        REPETITIONS,
+        EnhancedLanguage<
             REPETITIONS,
-            EnhancedLanguage<
-                REPETITIONS,
-                NUM_RANGE_CLAIMS,
-                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-                RangeProof,
-                UnboundedWitnessSpaceGroupElement,
-                Language,
-            >,
-            ProtocolContext,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
         >,
+        ProtocolContext,
+    >,
     pub(super) range_proof_proof_aggregation_round_party: range::ProofAggregationRoundParty<
         NUM_RANGE_CLAIMS,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
