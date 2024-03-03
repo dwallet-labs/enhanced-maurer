@@ -432,10 +432,14 @@ impl<
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::marker::PhantomData;
+    use std::{iter, marker::PhantomData};
 
-    use maurer::language::GroupsPublicParametersAccessors;
-    use proof::range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
+    use ::bulletproofs::{BulletproofGens, PedersenGens};
+    use crypto_bigint::{U256, U64};
+    use proof::range::{
+        bulletproofs,
+        bulletproofs::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS},
+    };
     use rand_core::OsRng;
 
     use super::*;
@@ -522,6 +526,7 @@ pub(crate) mod tests {
     >(
         unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
         language_public_parameters: Lang::PublicParameters,
+        witnesses: Vec<Lang::WitnessSpaceGroupElement>,
     ) {
         let enhanced_language_public_parameters = enhanced_language_public_parameters::<
             REPETITIONS,
@@ -533,19 +538,33 @@ pub(crate) mod tests {
             language_public_parameters,
         );
 
-        let witnesses = vec![WitnessSpaceGroupElement::<
+        let mut witnesses = EnhancedLanguage::<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
-            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
             bulletproofs::RangeProof,
             UnboundedWitnessSpaceGroupElement,
             Lang,
-        >::sample(
-            enhanced_language_public_parameters.witness_space_public_parameters(),
-            &mut OsRng,
+        >::generate_witnesses(
+            witnesses, &enhanced_language_public_parameters, &mut OsRng
         )
-        .unwrap()];
+        .unwrap();
 
+        let out_of_range_witness = witnesses.first().cloned().unwrap();
+        let (range_proof_commitment_message, commitment_randomness, unbounded_element) =
+            out_of_range_witness.into();
+        let mut range_proof_commitment_message_array: [_; NUM_RANGE_CLAIMS] =
+            range_proof_commitment_message.into();
+        range_proof_commitment_message_array[0] = U256::from(1u64 << RANGE_CLAIM_BITS).into();
+        let out_of_range_witness = (
+            range_proof_commitment_message_array.into(),
+            commitment_randomness,
+            unbounded_element,
+        )
+            .into();
+        witnesses[0] = out_of_range_witness;
+
+        // First test that we can't even generate a proof with out of range witness.
         let res = Proof::<
             REPETITIONS,
             NUM_RANGE_CLAIMS,
@@ -557,7 +576,7 @@ pub(crate) mod tests {
         >::prove(
             &PhantomData,
             &enhanced_language_public_parameters,
-            witnesses,
+            witnesses.clone(),
             &mut OsRng,
         );
 
@@ -567,6 +586,129 @@ pub(crate) mod tests {
                 Error::Proof(proof::Error::InvalidParameters)
             ),
             "shouldn't be able to verify proofs on out of range witnesses"
+        );
+
+        // Then check that if a malicious prover generates such proof, it fails verification.
+        let transcript = Proof::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+            PhantomData<()>,
+        >::setup_range_proof(
+            &PhantomData,
+            &enhanced_language_public_parameters.range_proof_public_parameters,
+        )
+        .unwrap();
+
+        let (randomizers, statement_masks) = Proof::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            bulletproofs::RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+            PhantomData<()>,
+        >::sample_randomizers_and_statement_masks(
+            &enhanced_language_public_parameters, &mut OsRng
+        )
+        .unwrap();
+
+        let (maurer_proof, statements) = maurer::Proof::<
+            REPETITIONS,
+            EnhancedLanguage<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                bulletproofs::RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Lang,
+            >,
+            PhantomData<()>,
+        >::prove_with_randomizers(
+            &PhantomData,
+            &enhanced_language_public_parameters,
+            witnesses.clone(),
+            randomizers,
+            statement_masks,
+        )
+        .unwrap();
+
+        let (witnesses, commitments_randomness): (Vec<_>, Vec<_>) = witnesses
+            .into_iter()
+            .map(|witness| {
+                let (range_proof_commitment_message, commitment_randomness, _) = witness.into();
+
+                (range_proof_commitment_message, commitment_randomness)
+            })
+            .unzip();
+
+        let witnesses: Vec<_> = witnesses
+            .into_iter()
+            .flat_map(<[_; NUM_RANGE_CLAIMS]>::from)
+            .map(U256::from)
+            .map(|witness| U64::from(&witness).into())
+            .collect();
+
+        let commitments_randomness: Vec<_> = commitments_randomness
+            .into_iter()
+            .flat_map(<[_; NUM_RANGE_CLAIMS]>::from)
+            .map(curve25519_dalek::scalar::Scalar::from)
+            .collect();
+
+        let padded_witnesses_length = witnesses.len().next_power_of_two();
+        let mut iter = witnesses.into_iter();
+        let witnesses: Vec<u64> = iter::repeat_with(|| iter.next().unwrap_or(0u64))
+            .take(padded_witnesses_length)
+            .collect();
+
+        let mut iter = commitments_randomness.into_iter();
+        let commitments_randomness: Vec<curve25519_dalek::scalar::Scalar> =
+            iter::repeat_with(|| {
+                iter.next()
+                    .unwrap_or(curve25519_dalek::scalar::Scalar::zero())
+            })
+            .take(padded_witnesses_length)
+            .collect();
+
+        let bulletproofs_generators = BulletproofGens::new(64, witnesses.len());
+        let commitment_generators = PedersenGens::default();
+
+        let out_of_range_proof = bulletproofs::test_helpers::new_range_proof(
+            ::bulletproofs::RangeProof::prove_multiple_with_rng(
+                bulletproofs_generators,
+                commitment_generators,
+                transcript,
+                witnesses.as_slice(),
+                commitments_randomness.as_slice(),
+                64,
+                &mut OsRng,
+            )
+            .unwrap()
+            .0,
+        );
+
+        let proof = Proof {
+            maurer_proof,
+            range_proof: out_of_range_proof,
+        };
+
+        assert!(
+            matches!(
+                proof
+                    .verify(
+                        &PhantomData,
+                        &enhanced_language_public_parameters,
+                        statements,
+                        &mut OsRng,
+                    )
+                    .err()
+                    .unwrap(),
+                Error::Proof(proof::Error::OutOfRange)
+            ),
+            "enhanced proof with out of range range proof must fail verification",
         );
     }
 }

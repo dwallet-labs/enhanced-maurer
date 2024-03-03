@@ -796,10 +796,8 @@ pub(crate) mod tests {
 
     pub(crate) const DIMENSION: usize = 2;
 
-    // TODO: it's ok to take next power of two here right
-    // TODO: no MASK_LIMBS. Instead, have some upper bound on the upper bounds
     pub(crate) const RANGE_CLAIMS_PER_MASK: usize =
-        (Uint::<MASK_LIMBS>::BITS / bulletproofs::RANGE_CLAIM_BITS).next_power_of_two();
+        Uint::<MASK_LIMBS>::BITS / bulletproofs::RANGE_CLAIM_BITS;
 
     pub(crate) const NUM_RANGE_CLAIMS: usize =
         DIMENSION * RANGE_CLAIMS_PER_SCALAR + RANGE_CLAIMS_PER_MASK;
@@ -958,12 +956,45 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
+    #[case(1)]
+    #[case(2)]
+    fn proof_with_out_of_range_witness_fails(#[case] batch_size: usize) {
+        let language_public_parameters = public_parameters();
+
+        let unbounded_witness_public_parameters = direct_product::PublicParameters(
+            self_product::PublicParameters::new(
+                language_public_parameters
+                    .scalar_group_public_parameters()
+                    .clone(),
+            ),
+            language_public_parameters
+                .encryption_scheme_public_parameters
+                .randomness_space_public_parameters()
+                .clone(),
+        );
+
+        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
+
+        crate::proof::tests::proof_with_out_of_range_witness_fails::<
+            SOUND_PROOFS_REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            direct_product::GroupElement<
+                self_product::GroupElement<DIMENSION, secp256k1::Scalar>,
+                tiresias::RandomnessSpaceGroupElement,
+            >,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+        )
+    }
+
+    #[rstest]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
         let language_public_parameters = public_parameters();
 
@@ -1000,12 +1031,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn wrong_decommitment_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -1049,12 +1078,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn failed_proof_share_verification_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -1117,12 +1144,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn unresponsive_parties_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -1163,35 +1188,5 @@ pub(crate) mod tests {
         proof::aggregation::test_helpers::unresponsive_parties_aborts_session_identifiably(
             commitment_round_parties,
         );
-    }
-
-    #[test]
-    fn proof_with_out_of_range_witness_fails() {
-        let language_public_parameters = public_parameters();
-
-        let unbounded_witness_public_parameters = direct_product::PublicParameters(
-            self_product::PublicParameters::new(
-                language_public_parameters
-                    .scalar_group_public_parameters()
-                    .clone(),
-            ),
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
-
-        crate::proof::tests::proof_with_out_of_range_witness_fails::<
-            SOUND_PROOFS_REPETITIONS,
-            NUM_RANGE_CLAIMS,
-            direct_product::GroupElement<
-                self_product::GroupElement<DIMENSION, secp256k1::Scalar>,
-                tiresias::RandomnessSpaceGroupElement,
-            >,
-            Lang,
-        >(
-            unbounded_witness_public_parameters,
-            language_public_parameters,
-        )
     }
 }

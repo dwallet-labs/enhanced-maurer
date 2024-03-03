@@ -573,12 +573,34 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
+    #[case(1)]
+    #[case(2)]
+    fn proof_with_out_of_range_witness_fails(#[case] batch_size: usize) {
+        let language_public_parameters = public_parameters();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
+
+        crate::proof::tests::proof_with_out_of_range_witness_fails::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+        )
+    }
+
+    #[rstest]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn aggregates(#[case] number_of_parties: usize, #[case] batch_size: usize) {
         let language_public_parameters = public_parameters();
 
@@ -604,12 +626,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn wrong_decommitment_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -642,12 +662,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn failed_proof_share_verification_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -696,12 +714,10 @@ pub(crate) mod tests {
     }
 
     #[rstest]
-    #[case(1, 1)]
-    #[case(1, 2)]
     #[case(2, 1)]
-    #[case(2, 2)]
-    #[case(8, 1)]
-    #[case(8, 4)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
     fn unresponsive_parties_aborts_session_identifiably(
         #[case] number_of_parties: usize,
         #[case] batch_size: usize,
@@ -731,24 +747,5 @@ pub(crate) mod tests {
         proof::aggregation::test_helpers::unresponsive_parties_aborts_session_identifiably(
             commitment_round_parties,
         );
-    }
-
-    #[test]
-    fn proof_with_out_of_range_witness_fails() {
-        let language_public_parameters = public_parameters();
-
-        let unbounded_witness_public_parameters = language_public_parameters
-            .randomness_space_public_parameters()
-            .clone();
-
-        crate::proof::tests::proof_with_out_of_range_witness_fails::<
-            SOUND_PROOFS_REPETITIONS,
-            RANGE_CLAIMS_PER_SCALAR,
-            tiresias::RandomnessSpaceGroupElement,
-            Lang,
-        >(
-            unbounded_witness_public_parameters,
-            language_public_parameters,
-        )
     }
 }
