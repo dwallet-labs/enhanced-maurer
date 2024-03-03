@@ -44,6 +44,7 @@ pub(crate) mod tests {
         marker::PhantomData,
     };
 
+    use crypto_bigint::U256;
     use group::{PartyID, Samplable};
     use proof::range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
     use rand_core::OsRng;
@@ -186,5 +187,56 @@ pub(crate) mod tests {
                 .is_ok(),
             "valid aggregated enhanced proofs should verify"
         );
+    }
+
+    // TODO: all other tests?
+    // TODO: similar to party_mismatching_maurer_range_proof_statements_aborts_identifiably have one
+    // out of range witness
+
+    pub(crate) fn party_mismatching_maurer_range_proof_statements_aborts_identifiably<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+        witnesses: Vec<Vec<Lang::WitnessSpaceGroupElement>>,
+    ) {
+        let mut commitment_round_parties = setup_aggregation::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters,
+            witnesses,
+        );
+
+        let malicious_party_id = 2;
+        let mut malicious_commitment_round_party = commitment_round_parties
+            .get(&malicious_party_id)
+            .unwrap()
+            .clone();
+
+        let mut witnesses = malicious_commitment_round_party
+            .range_proof_commitment_round_party
+            .witnesses;
+        let wrong_witness = witnesses.first().cloned().unwrap();
+        let mut wrong_witness_array: [_; NUM_RANGE_CLAIMS] = wrong_witness.into();
+        wrong_witness_array[0] = U256::from(1u64).into();
+        witnesses[0] = wrong_witness_array.into();
+        malicious_commitment_round_party
+            .range_proof_commitment_round_party
+            .witnesses = witnesses;
+        commitment_round_parties.insert(malicious_party_id, malicious_commitment_round_party);
+
+        proof::aggregation::test_helpers::aggregates(commitment_round_parties);
     }
 }

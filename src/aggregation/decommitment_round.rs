@@ -28,6 +28,7 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
+    pub(super) party_id: PartyID,
     pub(super) maurer_decommitment_round_party: maurer::aggregation::decommitment_round::Party<
         REPETITIONS,
         EnhancedLanguage<
@@ -154,6 +155,7 @@ where
             .decommit_statements_and_statement_mask(range_proof_commitments, rng)?;
 
         let proof_share_round_party = proof_share_round::Party {
+            party_id: self.party_id,
             maurer_proof_share_round_party,
             range_proof_proof_share_round_party,
         };
@@ -198,6 +200,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
+            party_id: self.party_id,
             maurer_decommitment_round_party: self.maurer_decommitment_round_party.clone(),
             range_proof_decommitment_round_party: self.range_proof_decommitment_round_party.clone(),
         }

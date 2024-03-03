@@ -797,9 +797,9 @@ pub(crate) mod tests {
         )
         .unwrap();
 
-        let out_of_range_witness = witnesses.first().cloned().unwrap();
+        let wrong_witness = witnesses.first().cloned().unwrap();
         let (range_proof_commitment_message, commitment_randomness, unbounded_element) =
-            out_of_range_witness.into();
+            wrong_witness.into();
         let mut range_proof_commitment_message_array: [_; NUM_RANGE_CLAIMS] =
             range_proof_commitment_message.into();
         range_proof_commitment_message_array[0] = U256::from(1u64).into();

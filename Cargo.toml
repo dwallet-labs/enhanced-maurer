@@ -33,4 +33,3 @@ maurer = { git = "https://github.com/dwallet-labs/maurer.git", features = ["test
 [features]
 default = []
 test_helpers = ["dep:criterion", "dep:rand_core", "dep:rstest", "proof/test_helpers"]
-benchmarking = ["test_helpers"]
