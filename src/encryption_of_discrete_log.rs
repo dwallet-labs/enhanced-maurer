@@ -597,6 +597,30 @@ pub(crate) mod tests {
     }
 
     #[rstest]
+    #[case(1)]
+    #[case(2)]
+    fn proof_with_valid_range_proof_over_wrong_witness_fails(#[case] batch_size: usize) {
+        let language_public_parameters = public_parameters();
+
+        let unbounded_witness_public_parameters = language_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
+
+        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
+
+        crate::proof::tests::proof_with_valid_range_proof_over_wrong_witness_fails::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            tiresias::RandomnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+        )
+    }
+
+    #[rstest]
     #[case(2, 1)]
     #[case(2, 3)]
     #[case(3, 1)]
