@@ -189,10 +189,6 @@ pub(crate) mod tests {
         );
     }
 
-    // TODO: all other tests?
-    // TODO: similar to party_mismatching_maurer_range_proof_statements_aborts_identifiably have one
-    // out of range witness
-
     pub(crate) fn party_mismatching_maurer_range_proof_statements_aborts_identifiably<
         const REPETITIONS: usize,
         const NUM_RANGE_CLAIMS: usize,
