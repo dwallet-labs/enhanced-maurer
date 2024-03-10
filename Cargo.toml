@@ -23,6 +23,8 @@ getrandom = { version = "0.2", features = ["js"] }
 rstest = { version = "0.18", optional = true }
 
 [dev-dependencies]
+bulletproofs = { git = "https://github.com/ycscaly/bulletproofs.git" }
+curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-features = false, features = ["u64_backend", "serde"] }
 rand_core = { version = "0.6", features = ["std"] }
 rstest = { version = "0.18" }
 proof = { git = "https://github.com/dwallet-labs/proof.git", features = ["test_helpers"] }
@@ -31,4 +33,3 @@ maurer = { git = "https://github.com/dwallet-labs/maurer.git", features = ["test
 [features]
 default = []
 test_helpers = ["dep:criterion", "dep:rand_core", "dep:rstest", "proof/test_helpers"]
-benchmarking = ["test_helpers"]

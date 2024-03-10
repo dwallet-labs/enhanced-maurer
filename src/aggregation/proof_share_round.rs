@@ -27,6 +27,7 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
+    pub(super) party_id: PartyID,
     pub(super) maurer_proof_share_round_party: maurer::aggregation::proof_share_round::Party<
         REPETITIONS,
         EnhancedLanguage<
@@ -165,6 +166,7 @@ where
             .generate_proof_share(range_proof_decommitments, rng)?;
 
         let proof_aggregation_round_party = proof_aggregation_round::Party {
+            party_id: self.party_id,
             maurer_proof_aggregation_round_party,
             range_proof_proof_aggregation_round_party,
         };
@@ -209,6 +211,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
+            party_id: self.party_id,
             maurer_proof_share_round_party: self.maurer_proof_share_round_party.clone(),
             range_proof_proof_share_round_party: self.range_proof_proof_share_round_party.clone(),
         }

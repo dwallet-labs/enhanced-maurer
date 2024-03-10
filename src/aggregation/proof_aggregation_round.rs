@@ -27,6 +27,7 @@ pub struct Party<
     >,
     ProtocolContext: Clone + Serialize,
 > {
+    pub(super) party_id: PartyID,
     pub maurer_proof_aggregation_round_party: maurer::aggregation::proof_aggregation_round::Party<
         REPETITIONS,
         EnhancedLanguage<
@@ -176,6 +177,7 @@ where
         if range_proof_commitments != maurer_range_proof_commitments {
             let mut malicious_parties: Vec<_> = range_proof_individual_commitments
                 .into_iter()
+                .filter(|(party_id, _)| *party_id != self.party_id)
                 .filter(|(party_id, range_proof_commitments)| {
                     // Same parties participating in all rounds in both protocols, safe to
                     // `.unwrap()`.
@@ -188,6 +190,10 @@ where
                 .collect();
 
             malicious_parties.sort();
+
+            if malicious_parties.is_empty() {
+                malicious_parties = vec![self.party_id];
+            }
 
             return Err(Error::MismatchingRangeProofMaurerCommitments(
                 malicious_parties,
@@ -279,6 +285,7 @@ where
 {
     fn clone(&self) -> Self {
         Self {
+            party_id: self.party_id,
             maurer_proof_aggregation_round_party: self.maurer_proof_aggregation_round_party.clone(),
             range_proof_proof_aggregation_round_party: self
                 .range_proof_proof_aggregation_round_party
