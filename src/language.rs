@@ -4,11 +4,11 @@
 use core::{array, marker::PhantomData};
 
 use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentScheme};
-use crypto_bigint::{CheckedMul, rand_core::CryptoRngCore, U64, Uint};
+use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};
 use group::{
-    BoundedGroupElement, ComputationalSecuritySizedNumber, direct_product, GroupElement,
-    helpers::FlatMapResults, KnownOrderGroupElement, KnownOrderScalar, PartyID,
-    Samplable, self_product, StatisticalSecuritySizedNumber,
+    direct_product, helpers::FlatMapResults, self_product, BoundedGroupElement,
+    ComputationalSecuritySizedNumber, GroupElement, KnownOrderGroupElement, KnownOrderScalar,
+    PartyID, Samplable, StatisticalSecuritySizedNumber,
 };
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
 use proof::range::{
@@ -518,7 +518,8 @@ impl<
             range_proof_commitment_message,
             commitment_randomness,
             unbounded_element,
-        ).into())
+        )
+            .into())
     }
 
     pub fn generate_witnesses(

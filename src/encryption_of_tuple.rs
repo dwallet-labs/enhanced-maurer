@@ -4,14 +4,14 @@ use std::marker::PhantomData;
 
 use crypto_bigint::{Encoding, Uint};
 use group::{
-    direct_product, direct_product::ThreeWayPublicParameters, GroupElement, KnownOrderGroupElement,
-    self_product,
+    direct_product, direct_product::ThreeWayPublicParameters, self_product, GroupElement,
+    KnownOrderGroupElement,
 };
 use homomorphic_encryption::{AdditivelyHomomorphicEncryptionKey, GroupsPublicParametersAccessors};
-use maurer::{Error, language::GroupsPublicParameters, SOUND_PROOFS_REPETITIONS};
+use maurer::{language::GroupsPublicParameters, Error, SOUND_PROOFS_REPETITIONS};
 use serde::{Deserialize, Serialize};
 
-use crate::{EnhanceableLanguage, language::DecomposableWitness};
+use crate::{language::DecomposableWitness, EnhanceableLanguage};
 
 /// Encryption of a Tuple Maurer Language
 ///
@@ -506,19 +506,18 @@ pub(crate) mod tests {
     use core::iter;
 
     use crypto_bigint::{Random, U256};
-    use group::{Samplable, secp256k1};
+    use group::{secp256k1, Samplable};
     use maurer::language;
     use proof::range::bulletproofs::RANGE_CLAIM_BITS;
     use rand_core::OsRng;
     use rstest::rstest;
     use tiresias::test_exports::N;
 
+    use super::*;
     use crate::{
         aggregation::tests::setup_aggregation,
         language::tests::{generate_scalar_plaintext, RANGE_CLAIMS_PER_SCALAR},
     };
-
-    use super::*;
 
     pub type Lang = Language<
         { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
