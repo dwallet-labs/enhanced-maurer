@@ -279,7 +279,7 @@ pub(super) mod private {
         Uint<PLAINTEXT_SPACE_SCALAR_LIMBS>: Encoding,
     {
         pub groups_public_parameters: GroupsPublicParameters<
-            direct_product::ThreeWayPublicParameters<
+            ThreeWayPublicParameters<
                 PlaintextSpacePublicParameters,
                 RandomnessSpacePublicParameters,
                 RandomnessSpacePublicParameters,

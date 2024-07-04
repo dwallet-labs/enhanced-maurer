@@ -14,7 +14,7 @@ proof = { git = "https://github.com/dwallet-labs/proof.git" }
 homomorphic_encryption = { git = "https://github.com/dwallet-labs/homomorphic-encryption.git" }
 commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
 maurer = { git = "https://github.com/dwallet-labs/maurer.git" }
-tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", branch = "he", features = ["test_exports"] }
+tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", features = ["test_exports"] }
 thiserror = "1.0"
 
 criterion = { version = "0.5", features = ["html_reports"], optional = true }
