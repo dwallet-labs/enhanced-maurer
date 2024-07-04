@@ -4,11 +4,11 @@
 use core::{array, marker::PhantomData};
 
 use commitment::{GroupsPublicParametersAccessors as _, HomomorphicCommitmentScheme};
-use crypto_bigint::{rand_core::CryptoRngCore, CheckedMul, Uint, U64};
+use crypto_bigint::{CheckedMul, rand_core::CryptoRngCore, U64, Uint};
 use group::{
-    direct_product, helpers::FlatMapResults, self_product, BoundedGroupElement,
-    ComputationalSecuritySizedNumber, GroupElement, KnownOrderGroupElement, KnownOrderScalar,
-    PartyID, Samplable, StatisticalSecuritySizedNumber,
+    BoundedGroupElement, ComputationalSecuritySizedNumber, direct_product, GroupElement,
+    helpers::FlatMapResults, KnownOrderGroupElement, KnownOrderScalar, PartyID,
+    Samplable, self_product, StatisticalSecuritySizedNumber,
 };
 use maurer::language::{GroupsPublicParameters, GroupsPublicParametersAccessors};
 use proof::range::{
@@ -41,13 +41,13 @@ pub struct EnhancedLanguage<
 }
 
 /// An Enhanceable Maurer Language.
-/// By itself implements the `maurer::Language` trait, although it might not actually be a valid
+/// By itself implements the `maurer::Language` trait, although it might not be a valid
 /// language with no range claims. Defines transition methods to compose and decompose its witness
 /// from and to what we call a _decomposed witness_, which is a list of range claims over the range
 /// proof's commitment scheme message space.
 ///
 /// Essentially, in case a witness is bigger than the size of the range-proof commitment scheme
-/// message space, it is breaked-down (decomposed) into multiple smaller range claims that do fit in
+/// message space; it is broken-down (decomposed) into multiple smaller range claims that do fit in
 /// the commitment. This is done by viewing the witness w in base \Delta such that
 /// w=\sum_{i}{w_i}\Delta^i, with /// \Delta \ll \abs{\calM_\pp}.
 /// The decomposed witness (w_i)_i can then be composed back into w.
@@ -514,12 +514,12 @@ impl<
             rng,
         )?;
 
-        Ok((
+        (
             range_proof_commitment_message,
             commitment_randomness,
             unbounded_element,
         )
-            .into())
+            .into()
     }
 
     pub fn generate_witnesses(
@@ -816,7 +816,7 @@ impl<
     >
 {
     fn range_proof_commitment_message(&self) -> &MessageSpaceGroupElement {
-        let (range_proof_commitment_message, ..): (_, _, _) = self.into();
+        let (range_proof_commitment_message, ..) = self.into();
 
         range_proof_commitment_message
     }
