@@ -514,12 +514,11 @@ impl<
             rng,
         )?;
 
-        (
+        Ok((
             range_proof_commitment_message,
             commitment_randomness,
             unbounded_element,
-        )
-            .into()
+        ).into())
     }
 
     pub fn generate_witnesses(
@@ -816,7 +815,7 @@ impl<
     >
 {
     fn range_proof_commitment_message(&self) -> &MessageSpaceGroupElement {
-        let (range_proof_commitment_message, ..) = self.into();
+        let (range_proof_commitment_message, ..): (_, _, _) = self.into();
 
         range_proof_commitment_message
     }
