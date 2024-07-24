@@ -7,6 +7,7 @@ pub mod encryption_of_discrete_log;
 pub mod encryption_of_tuple;
 pub mod language;
 pub mod proof;
+pub mod scaling_of_discrete_log;
 
 use group::PartyID;
 pub use language::{
