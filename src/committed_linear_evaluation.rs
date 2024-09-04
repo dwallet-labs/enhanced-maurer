@@ -1066,6 +1066,52 @@ pub(crate) mod tests {
     }
 
     #[rstest]
+    #[case(1, 1, 1)]
+    #[case(1, 1, 2)]
+    #[case(2, 2, 1)]
+    #[case(3, 2, 1)]
+    #[case(5, 3, 2)]
+    fn statement_aggregates_asynchronously(
+        #[case] number_of_parties: usize,
+        #[case] threshold: usize,
+        #[case] batch_size: usize,
+    ) {
+        let language_public_parameters = public_parameters();
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = direct_product::PublicParameters(
+            self_product::PublicParameters::new(
+                language_public_parameters
+                    .scalar_group_public_parameters()
+                    .clone(),
+            ),
+            language_public_parameters
+                .encryption_scheme_public_parameters
+                .randomness_space_public_parameters()
+                .clone(),
+        );
+
+        crate::proof::tests::statement_aggregates_asynchronously::<
+            SOUND_PROOFS_REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            direct_product::GroupElement<
+                self_product::GroupElement<DIMENSION, secp256k1::Scalar>,
+                tiresias::RandomnessSpaceGroupElement,
+            >,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+            threshold.try_into().unwrap(),
+        );
+    }
+
+    #[rstest]
     #[case(2, 1)]
     #[case(3, 3)]
     #[should_panic(

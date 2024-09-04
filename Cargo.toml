@@ -10,10 +10,10 @@ merlin = { version = "3", default-features = false }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = { version = "1.0", default-features = false, features = ["alloc"] }
 group = { git = "https://github.com/dwallet-labs/group.git" }
-proof = { git = "https://github.com/dwallet-labs/proof.git" }
+proof = { git = "https://github.com/dwallet-labs/proof.git", branch = "mpc" }
 homomorphic_encryption = { git = "https://github.com/dwallet-labs/homomorphic-encryption.git" }
 commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "dcomeq" }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "mpc" }
 tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", features = ["test_exports"] }
 thiserror = "1.0"
 
@@ -27,8 +27,8 @@ bulletproofs = { git = "https://github.com/ycscaly/bulletproofs.git" }
 curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-features = false, features = ["u64_backend", "serde"] }
 rand_core = { version = "0.6", features = ["std"] }
 rstest = { version = "0.18" }
-proof = { git = "https://github.com/dwallet-labs/proof.git", features = ["test_helpers"] }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "dcomeq", features = ["test_helpers"] }
+proof = { git = "https://github.com/dwallet-labs/proof.git", branch = "mpc", features = ["test_helpers"] }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "mpc", features = ["test_helpers"] }
 
 [features]
 default = []

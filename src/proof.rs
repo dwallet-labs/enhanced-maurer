@@ -4,6 +4,7 @@
 #![allow(clippy::type_complexity)]
 
 use core::array;
+use std::fmt::Debug;
 
 use commitment::GroupsPublicParametersAccessors as _;
 use crypto_bigint::{rand_core::CryptoRngCore, NonZero, RandomMod, Uint};
@@ -430,12 +431,95 @@ impl<
     }
 }
 
+impl<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+        RangeProof: proof::RangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Language: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            UnboundedWitnessSpaceGroupElement,
+        >,
+        ProtocolContext: Clone + Serialize + Debug + PartialEq + Eq,
+    > proof::Proof
+    for Proof<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+        ProtocolContext,
+    >
+{
+    type Error = Error;
+    type ProtocolContext = ProtocolContext;
+    type PublicParameters = EnhancedPublicParameters<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+    >;
+
+    type WitnessSpaceGroupElement = WitnessSpaceGroupElement<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+    >;
+    type StatementSpaceGroupElement = StatementSpaceGroupElement<
+        REPETITIONS,
+        NUM_RANGE_CLAIMS,
+        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+        RangeProof,
+        UnboundedWitnessSpaceGroupElement,
+        Language,
+    >;
+
+    fn prove(
+        protocol_context: &Self::ProtocolContext,
+        enhanced_language_public_parameters: &Self::PublicParameters,
+        witnesses: Vec<Self::WitnessSpaceGroupElement>,
+        rng: &mut impl CryptoRngCore,
+    ) -> std::result::Result<(Self, Vec<Self::StatementSpaceGroupElement>), Self::Error> {
+        Proof::prove(
+            protocol_context,
+            enhanced_language_public_parameters,
+            witnesses,
+            rng,
+        )
+    }
+
+    fn verify(
+        &self,
+        protocol_context: &Self::ProtocolContext,
+        enhanced_language_public_parameters: &Self::PublicParameters,
+        statements: Vec<Self::StatementSpaceGroupElement>,
+        rng: &mut impl CryptoRngCore,
+    ) -> std::result::Result<(), Self::Error> {
+        self.verify(
+            protocol_context,
+            enhanced_language_public_parameters,
+            statements,
+            rng,
+        )
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{iter, marker::PhantomData};
+    use std::{collections::HashMap, iter, marker::PhantomData};
 
     use ::bulletproofs::{BulletproofGens, PedersenGens};
     use crypto_bigint::{U256, U64};
+    use group::PartyID;
     use proof::range::{
         bulletproofs,
         bulletproofs::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS},
@@ -511,6 +595,82 @@ pub(crate) mod tests {
                 .is_ok(),
             "valid enhanced proofs should verify",
         );
+    }
+
+    /// Test that the MPC Session for the Enhanced Maurer statement aggregation asynchronous
+    /// protocol for `Lang` succeeds.
+    pub(crate) fn statement_aggregates_asynchronously<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+        witnesses: Vec<Vec<Lang::WitnessSpaceGroupElement>>,
+        threshold: PartyID,
+    ) {
+        let enhanced_language_public_parameters = enhanced_language_public_parameters::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+        );
+
+        let parties: HashMap<_, _> = witnesses
+            .into_iter()
+            .enumerate()
+            .map(|(party_id, witnesses)| {
+                let party_id: u16 = (party_id + 1).try_into().unwrap();
+
+                let witnesses = EnhancedLanguage::<
+                    REPETITIONS,
+                    NUM_RANGE_CLAIMS,
+                    { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+                    bulletproofs::RangeProof,
+                    UnboundedWitnessSpaceGroupElement,
+                    Lang,
+                >::generate_witnesses(
+                    witnesses, &enhanced_language_public_parameters, &mut OsRng
+                )
+                .unwrap();
+
+                let party = proof::aggregation::asynchronous::Party::<
+                    Proof<
+                        REPETITIONS,
+                        NUM_RANGE_CLAIMS,
+                        COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                        bulletproofs::RangeProof,
+                        UnboundedWitnessSpaceGroupElement,
+                        Lang,
+                        PhantomData<()>,
+                    >,
+                >::Proof {
+                    witnesses,
+                    public_parameters: enhanced_language_public_parameters.clone(),
+                    protocol_context: PhantomData,
+                    threshold,
+                };
+
+                (party_id, party)
+            })
+            .collect();
+
+        proof::mpc::test_helpers::session_terminates_successfully(
+            parties,
+            Some(threshold),
+            &(),
+            &mut OsRng,
+        )
+        .unwrap();
     }
 
     pub(crate) fn proof_with_out_of_range_witness_fails<
