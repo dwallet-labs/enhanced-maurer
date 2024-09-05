@@ -3,38 +3,35 @@
 use std::marker::PhantomData;
 
 use crypto_bigint::{Encoding, Uint};
-use group::{
-    direct_product, direct_product::ThreeWayPublicParameters, self_product, GroupElement,
-    KnownOrderGroupElement,
-};
+use group::{direct_product, GroupElement, KnownOrderGroupElement, PrimeGroupElement};
 use homomorphic_encryption::{AdditivelyHomomorphicEncryptionKey, GroupsPublicParametersAccessors};
 use maurer::{language::GroupsPublicParameters, Error, SOUND_PROOFS_REPETITIONS};
 use serde::{Deserialize, Serialize};
 
 use crate::{language::DecomposableWitness, EnhanceableLanguage};
 
-/// Encryption of a Tuple Maurer Language
+/// Scaling of a Discrete Log Maurer Language
 ///
 /// SECURITY NOTICE:
 /// This language implicitly assumes that the plaintext space of the encryption scheme and the
 /// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
-/// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
+/// if we use this language in its enhanced form, i.e., `EnhancedLanguage`.
 ///
 /// SECURITY NOTICE (2):
-/// Furthermore, even when using `EnhancedLanguage`, note that ENC_DH proves a correct computation
-/// that is not a secure function evaluation. That is, the result is not safe to decrypt, as it does
+/// Furthermore, even when using `EnhancedLanguage`, note that `ENC_DH` proves a correct computation
+/// that is not a secure function evaluation. That is, the result is unsafe to decrypt, as it does
 /// not hide the number of arithmetic reductions mod q. For secure function evaluation, use
 /// `DComEval` (enhanced) language. Because correctness and zero-knowledge is guaranteed for any
 /// group and additively homomorphic encryption scheme in this language, we choose to provide a
 /// fully generic implementation.
 ///
-/// However knowledge-soundness proofs are group and encryption scheme dependent, and thus we can
-/// only assure security for groups and encryption schemes for which we know how to prove it.
+/// However, knowledge-soundness proofs are group and encryption scheme-dependent, and thus we can
+/// only ensure security for groups and encryption schemes for which we know how to prove it.
 ///
 /// In the paper, we have proved it for any prime known-order group; so it is safe to use with a
 /// `PrimeOrderGroupElement`.
 ///
-/// In regards to additively homomorphic encryption schemes, we proved it for `paillier`.
+/// Regarding additively homomorphic encryption schemes, we proved it for `Paillier`.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, Eq)]
 pub struct Language<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
@@ -46,14 +43,10 @@ pub struct Language<
     _encryption_key_choice: PhantomData<EncryptionKey>,
 }
 
-/// The Witness Space Group Element of the Encryption of a Tuple Maurer Language.
+/// The Witness Space Group Element of the Scaling of a Discrete Log Maurer Language.
 pub type WitnessSpaceGroupElement<const PLAINTEXT_SPACE_SCALAR_LIMBS: usize, EncryptionKey> =
-    direct_product::ThreeWayGroupElement<
+    direct_product::GroupElement<
         homomorphic_encryption::PlaintextSpaceGroupElement<
-            PLAINTEXT_SPACE_SCALAR_LIMBS,
-            EncryptionKey,
-        >,
-        homomorphic_encryption::RandomnessSpaceGroupElement<
             PLAINTEXT_SPACE_SCALAR_LIMBS,
             EncryptionKey,
         >,
@@ -63,22 +56,23 @@ pub type WitnessSpaceGroupElement<const PLAINTEXT_SPACE_SCALAR_LIMBS: usize, Enc
         >,
     >;
 
-/// The Statement Space Group Element of the Encryption of a Tuple Maurer Language.
+/// The Statement Space Group Element of the Scaling of a Discrete Log Maurer Language.
 pub type StatementSpaceGroupElement<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
     const SCALAR_LIMBS: usize,
+    GroupElement,
     EncryptionKey,
-> = self_product::GroupElement<
-    2,
+> = direct_product::GroupElement<
     homomorphic_encryption::CiphertextSpaceGroupElement<
         PLAINTEXT_SPACE_SCALAR_LIMBS,
         EncryptionKey,
     >,
+    GroupElement,
 >;
 
-/// The Public Parameters of the Encryption of a Tuple Maurer Language.
+/// The Public Parameters of the Scaling of a Discrete Log Maurer Language.
 /// The `lower_bound` of `ciphertext` should be verified independently,
-/// e.g. by verifying (and following) a sequence of enhanced proofs over the homomorphic
+/// e.g., by verifying (and following) a sequence of enhanced proofs over the homomorphic
 /// computations that yields it.
 pub type PublicParameters<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
@@ -88,6 +82,7 @@ pub type PublicParameters<
 > = private::PublicParameters<
     PLAINTEXT_SPACE_SCALAR_LIMBS,
     group::PublicParameters<group::Scalar<SCALAR_LIMBS, GroupElement>>,
+    group::PublicParameters<GroupElement>,
     homomorphic_encryption::PlaintextSpacePublicParameters<
         PLAINTEXT_SPACE_SCALAR_LIMBS,
         EncryptionKey,
@@ -103,11 +98,10 @@ pub type PublicParameters<
     homomorphic_encryption::PublicParameters<PLAINTEXT_SPACE_SCALAR_LIMBS, EncryptionKey>,
     homomorphic_encryption::CiphertextSpaceValue<PLAINTEXT_SPACE_SCALAR_LIMBS, EncryptionKey>,
 >;
-
 impl<
         const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
         const SCALAR_LIMBS: usize,
-        GroupElement: KnownOrderGroupElement<SCALAR_LIMBS>,
+        GroupElement: PrimeGroupElement<SCALAR_LIMBS>,
         EncryptionKey: AdditivelyHomomorphicEncryptionKey<PLAINTEXT_SPACE_SCALAR_LIMBS>,
     > maurer::Language<SOUND_PROOFS_REPETITIONS>
     for Language<PLAINTEXT_SPACE_SCALAR_LIMBS, SCALAR_LIMBS, GroupElement, EncryptionKey>
@@ -117,13 +111,17 @@ where
     type WitnessSpaceGroupElement =
         WitnessSpaceGroupElement<PLAINTEXT_SPACE_SCALAR_LIMBS, EncryptionKey>;
 
-    type StatementSpaceGroupElement =
-        StatementSpaceGroupElement<PLAINTEXT_SPACE_SCALAR_LIMBS, SCALAR_LIMBS, EncryptionKey>;
+    type StatementSpaceGroupElement = crate::encryption_of_discrete_log::StatementSpaceGroupElement<
+        PLAINTEXT_SPACE_SCALAR_LIMBS,
+        SCALAR_LIMBS,
+        GroupElement,
+        EncryptionKey,
+    >;
 
     type PublicParameters =
         PublicParameters<PLAINTEXT_SPACE_SCALAR_LIMBS, SCALAR_LIMBS, GroupElement, EncryptionKey>;
 
-    const NAME: &'static str = "Encryption of a Tuple";
+    const NAME: &'static str = "Scaling of a Discrete Log";
 
     fn homomorphose(
         witness: &Self::WitnessSpaceGroupElement,
@@ -139,6 +137,12 @@ where
             ),
         );
 
+        let generator = GroupElement::generator_from_public_parameters(
+            language_public_parameters.group_public_parameters(),
+        )?;
+
+        let base_by_discrete_log = generator.scalar_mul(&witness.discrete_log().value().into());
+
         let encryption_key =
             EncryptionKey::new(&language_public_parameters.encryption_scheme_public_parameters)
                 .map_err(|_| maurer::Error::InvalidPublicParameters)?;
@@ -153,27 +157,22 @@ where
                 .ciphertext_space_public_parameters(),
         )?;
 
-        let encrypted_multiplicand = encryption_key.encrypt_with_randomness(
-            witness.multiplicand(),
-            witness.multiplicand_randomness(),
-            &language_public_parameters.encryption_scheme_public_parameters,
-        );
-
         // No masking of the plaintext is needed, as we don't need secure function evaluation.
-        let mask = witness.multiplicand().neutral();
+        // However, we do want to re-randomize the ciphertext when doing the scalar multiplication, to ensure circuit privacy against an adversary that does not hold the private key, that is, the centralised party A.
+        let mask = witness.discrete_log().neutral();
 
-        let encrypted_product = encryption_key
+        let scaled_ciphertext = encryption_key
             .securely_evaluate_linear_combination_with_randomness(
-                &[*witness.multiplicand()],
+                &[*witness.discrete_log()],
                 [(ciphertext, language_public_parameters.upper_bound)],
                 &group_order,
                 &mask,
-                witness.product_randomness(),
+                witness.randomness(),
                 &language_public_parameters.encryption_scheme_public_parameters,
             )
             .map_err(|_| maurer::Error::InvalidPublicParameters)?;
 
-        Ok([encrypted_multiplicand, encrypted_product].into())
+        Ok((scaled_ciphertext, base_by_discrete_log).into())
     }
 }
 
@@ -181,13 +180,13 @@ impl<
         const RANGE_CLAIMS_PER_SCALAR: usize,
         const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
         const SCALAR_LIMBS: usize,
-        GroupElement: KnownOrderGroupElement<SCALAR_LIMBS>,
+        GroupElement: PrimeGroupElement<SCALAR_LIMBS>,
     >
     EnhanceableLanguage<
         SOUND_PROOFS_REPETITIONS,
         RANGE_CLAIMS_PER_SCALAR,
         COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-        self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+        tiresias::RandomnessSpaceGroupElement,
     >
     for Language<
         { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
@@ -199,7 +198,7 @@ impl<
     fn compose_witness(
         decomposed_witness: [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>;
             RANGE_CLAIMS_PER_SCALAR],
-        randomness: self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+        randomness: tiresias::RandomnessSpaceGroupElement,
         language_public_parameters: &Self::PublicParameters,
         range_claim_bits: usize,
     ) -> maurer::Result<Self::WitnessSpaceGroupElement> {
@@ -207,13 +206,13 @@ impl<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
-        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement::Scalar>(
+            tiresias::RandomnessSpaceGroupElement,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
             range_claim_bits,
-            &language_public_parameters.scalar_group_public_parameters,
+            language_public_parameters.group_public_parameters(),
         )?;
 
-        let multiplicand = <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
+        let discrete_log = <tiresias::PlaintextSpaceGroupElement as DecomposableWitness<
             RANGE_CLAIMS_PER_SCALAR,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
             { tiresias::PLAINTEXT_SPACE_SCALAR_LIMBS },
@@ -225,10 +224,7 @@ impl<
             range_claim_bits,
         )?;
 
-        let multiplicand_randomness = <[_; 2]>::from(randomness)[0];
-        let product_randomness = <[_; 2]>::from(randomness)[1];
-
-        Ok((multiplicand, multiplicand_randomness, product_randomness).into())
+        Ok((discrete_log, randomness).into())
     }
 
     fn decompose_witness(
@@ -237,25 +233,21 @@ impl<
         range_claim_bits: usize,
     ) -> maurer::Result<(
         [Uint<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>; RANGE_CLAIMS_PER_SCALAR],
-        self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+        tiresias::RandomnessSpaceGroupElement,
     )> {
         <Self as EnhanceableLanguage<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
             COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
-        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement::Scalar>(
+            tiresias::RandomnessSpaceGroupElement,
+        >>::valid_group_order::<RANGE_CLAIMS_PER_SCALAR, SCALAR_LIMBS, GroupElement>(
             range_claim_bits,
-            &language_public_parameters.scalar_group_public_parameters,
+            language_public_parameters.group_public_parameters(),
         )?;
 
         Ok((
-            witness.multiplicand().decompose(range_claim_bits)?,
-            [
-                *witness.multiplicand_randomness(),
-                *witness.product_randomness(),
-            ]
-            .into(),
+            witness.discrete_log().decompose(range_claim_bits)?,
+            *witness.randomness(),
         ))
     }
 }
@@ -269,6 +261,7 @@ pub(super) mod private {
     pub struct PublicParameters<
         const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
         ScalarPublicParameters,
+        GroupPublicParameters,
         PlaintextSpacePublicParameters,
         RandomnessSpacePublicParameters,
         CiphertextSpacePublicParameters,
@@ -279,12 +272,14 @@ pub(super) mod private {
         Uint<PLAINTEXT_SPACE_SCALAR_LIMBS>: Encoding,
     {
         pub groups_public_parameters: GroupsPublicParameters<
-            ThreeWayPublicParameters<
+            direct_product::PublicParameters<
                 PlaintextSpacePublicParameters,
                 RandomnessSpacePublicParameters,
-                RandomnessSpacePublicParameters,
             >,
-            self_product::PublicParameters<2, CiphertextSpacePublicParameters>,
+            direct_product::PublicParameters<
+                CiphertextSpacePublicParameters,
+                GroupPublicParameters,
+            >,
         >,
         pub scalar_group_public_parameters: ScalarPublicParameters,
         pub encryption_scheme_public_parameters: EncryptionKeyPublicParameters,
@@ -296,6 +291,7 @@ pub(super) mod private {
 impl<
         const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
         ScalarPublicParameters,
+        GroupPublicParameters,
         PlaintextSpacePublicParameters,
         RandomnessSpacePublicParameters,
         CiphertextSpacePublicParameters,
@@ -304,17 +300,20 @@ impl<
     >
     AsRef<
         GroupsPublicParameters<
-            ThreeWayPublicParameters<
+            direct_product::PublicParameters<
                 PlaintextSpacePublicParameters,
                 RandomnessSpacePublicParameters,
-                RandomnessSpacePublicParameters,
             >,
-            self_product::PublicParameters<2, CiphertextSpacePublicParameters>,
+            direct_product::PublicParameters<
+                CiphertextSpacePublicParameters,
+                GroupPublicParameters,
+            >,
         >,
     >
     for private::PublicParameters<
         PLAINTEXT_SPACE_SCALAR_LIMBS,
         ScalarPublicParameters,
+        GroupPublicParameters,
         PlaintextSpacePublicParameters,
         RandomnessSpacePublicParameters,
         CiphertextSpacePublicParameters,
@@ -327,19 +326,20 @@ where
     fn as_ref(
         &self,
     ) -> &GroupsPublicParameters<
-        ThreeWayPublicParameters<
+        direct_product::PublicParameters<
             PlaintextSpacePublicParameters,
             RandomnessSpacePublicParameters,
-            RandomnessSpacePublicParameters,
         >,
-        self_product::PublicParameters<2, CiphertextSpacePublicParameters>,
+        direct_product::PublicParameters<CiphertextSpacePublicParameters, GroupPublicParameters>,
     > {
         &self.groups_public_parameters
     }
 }
+
 impl<
         const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
         ScalarPublicParameters,
+        GroupPublicParameters,
         PlaintextSpacePublicParameters: Clone,
         RandomnessSpacePublicParameters: Clone,
         CiphertextSpacePublicParameters: Clone,
@@ -355,6 +355,7 @@ impl<
     private::PublicParameters<
         PLAINTEXT_SPACE_SCALAR_LIMBS,
         ScalarPublicParameters,
+        GroupPublicParameters,
         PlaintextSpacePublicParameters,
         RandomnessSpacePublicParameters,
         CiphertextSpacePublicParameters,
@@ -370,6 +371,7 @@ where
         EncryptionKey,
     >(
         scalar_group_public_parameters: group::PublicParameters<GroupElement::Scalar>,
+        group_public_parameters: GroupPublicParameters,
         encryption_scheme_public_parameters: EncryptionKeyPublicParameters,
         ciphertext: CiphertextSpaceValue,
         upper_bound: Uint<PLAINTEXT_SPACE_SCALAR_LIMBS>,
@@ -396,18 +398,15 @@ where
                     encryption_scheme_public_parameters
                         .randomness_space_public_parameters()
                         .clone(),
-                    encryption_scheme_public_parameters
-                        .randomness_space_public_parameters()
-                        .clone(),
                 )
                     .into(),
-                statement_space_public_parameters: group::PublicParameters::<
-                    self_product::GroupElement<2, EncryptionKey::CiphertextSpaceGroupElement>,
-                >::new(
+                statement_space_public_parameters: (
                     encryption_scheme_public_parameters
                         .ciphertext_space_public_parameters()
                         .clone(),
-                ),
+                    group_public_parameters,
+                )
+                    .into(),
             },
             scalar_group_public_parameters,
             encryption_scheme_public_parameters,
@@ -415,69 +414,70 @@ where
             upper_bound,
         }
     }
+
+    pub fn group_public_parameters(&self) -> &GroupPublicParameters {
+        let (_, group_public_parameters) = (&self
+            .groups_public_parameters
+            .statement_space_public_parameters)
+            .into();
+
+        group_public_parameters
+    }
 }
 
 pub trait WitnessAccessors<
-    PlaintextSpaceGroupElement: group::GroupElement,
-    RandomnessSpaceGroupElement: group::GroupElement,
+    PlaintextSpaceGroupElement: GroupElement,
+    RandomnessSpaceGroupElement: GroupElement,
 >
 {
-    fn multiplicand(&self) -> &PlaintextSpaceGroupElement;
+    fn discrete_log(&self) -> &PlaintextSpaceGroupElement;
 
-    fn multiplicand_randomness(&self) -> &RandomnessSpaceGroupElement;
-
-    fn product_randomness(&self) -> &RandomnessSpaceGroupElement;
+    fn randomness(&self) -> &RandomnessSpaceGroupElement;
 }
 
 impl<
         PlaintextSpaceGroupElement: group::GroupElement,
         RandomnessSpaceGroupElement: group::GroupElement,
     > WitnessAccessors<PlaintextSpaceGroupElement, RandomnessSpaceGroupElement>
-    for direct_product::ThreeWayGroupElement<
-        PlaintextSpaceGroupElement,
-        RandomnessSpaceGroupElement,
-        RandomnessSpaceGroupElement,
-    >
+    for direct_product::GroupElement<PlaintextSpaceGroupElement, RandomnessSpaceGroupElement>
 {
-    fn multiplicand(&self) -> &PlaintextSpaceGroupElement {
-        let (multiplicand, ..): (&_, &_, &_) = self.into();
+    fn discrete_log(&self) -> &PlaintextSpaceGroupElement {
+        let (discrete_log, _): (&_, &_) = self.into();
 
-        multiplicand
+        discrete_log
     }
 
-    fn multiplicand_randomness(&self) -> &RandomnessSpaceGroupElement {
-        let (_, multiplicand_randomness, _): (&_, &_, &_) = self.into();
+    fn randomness(&self) -> &RandomnessSpaceGroupElement {
+        let (_, randomness): (&_, &_) = self.into();
 
-        multiplicand_randomness
-    }
-
-    fn product_randomness(&self) -> &RandomnessSpaceGroupElement {
-        let (_, _, product_randomness): (&_, &_, &_) = self.into();
-
-        product_randomness
+        randomness
     }
 }
 
-pub trait StatementAccessors<CiphertextSpaceGroupElement: group::GroupElement> {
-    fn encrypted_multiplicand(&self) -> &CiphertextSpaceGroupElement;
+pub trait StatementAccessors<
+    CiphertextSpaceGroupElement: group::GroupElement,
+    GroupElement: group::GroupElement,
+>
+{
+    fn scaled_ciphertext(&self) -> &CiphertextSpaceGroupElement;
 
-    fn encrypted_product(&self) -> &CiphertextSpaceGroupElement;
+    fn base_by_discrete_log(&self) -> &GroupElement;
 }
 
-impl<CiphertextSpaceGroupElement: group::GroupElement>
-    StatementAccessors<CiphertextSpaceGroupElement>
-    for self_product::GroupElement<2, CiphertextSpaceGroupElement>
+impl<CiphertextSpaceGroupElement: group::GroupElement, GroupElement: group::GroupElement>
+    StatementAccessors<CiphertextSpaceGroupElement, GroupElement>
+    for direct_product::GroupElement<CiphertextSpaceGroupElement, GroupElement>
 {
-    fn encrypted_multiplicand(&self) -> &CiphertextSpaceGroupElement {
-        let value: &[_; 2] = self.into();
+    fn scaled_ciphertext(&self) -> &CiphertextSpaceGroupElement {
+        let (scaled_ciphertext, _): (&_, &_) = self.into();
 
-        &value[0]
+        scaled_ciphertext
     }
 
-    fn encrypted_product(&self) -> &CiphertextSpaceGroupElement {
-        let value: &[_; 2] = self.into();
+    fn base_by_discrete_log(&self) -> &GroupElement {
+        let (_, base_by_discrete_log): (&_, &_) = self.into();
 
-        &value[1]
+        base_by_discrete_log
     }
 }
 
@@ -530,6 +530,9 @@ pub(crate) mod tests {
     {
         let secp256k1_scalar_public_parameters = secp256k1::scalar::PublicParameters::default();
 
+        let secp256k1_group_public_parameters =
+            secp256k1::group_element::PublicParameters::default();
+
         let paillier_public_parameters =
             tiresias::encryption_key::PublicParameters::new(N).unwrap();
 
@@ -559,6 +562,7 @@ pub(crate) mod tests {
             tiresias::EncryptionKey,
         >::new::<{ secp256k1::SCALAR_LIMBS }, secp256k1::GroupElement, tiresias::EncryptionKey>(
             secp256k1_scalar_public_parameters,
+            secp256k1_group_public_parameters,
             paillier_public_parameters,
             ciphertext,
             upper_bound,
@@ -570,9 +574,9 @@ pub(crate) mod tests {
         batch_size: usize,
     ) -> Vec<language::WitnessSpaceGroupElement<SOUND_PROOFS_REPETITIONS, Lang>> {
         iter::repeat_with(|| {
-            let multiplicand = generate_scalar_plaintext();
+            let discrete_log = generate_scalar_plaintext();
 
-            let multiplicand_randomness = tiresias::RandomnessSpaceGroupElement::sample(
+            let randomness = tiresias::RandomnessSpaceGroupElement::sample(
                 language_public_parameters
                     .encryption_scheme_public_parameters
                     .randomness_space_public_parameters(),
@@ -580,15 +584,7 @@ pub(crate) mod tests {
             )
             .unwrap();
 
-            let product_randomness = tiresias::RandomnessSpaceGroupElement::sample(
-                language_public_parameters
-                    .encryption_scheme_public_parameters
-                    .randomness_space_public_parameters(),
-                &mut OsRng,
-            )
-            .unwrap();
-
-            (multiplicand, multiplicand_randomness, product_randomness).into()
+            (discrete_log, randomness).into()
         })
         .take(batch_size)
         .collect()
@@ -603,17 +599,15 @@ pub(crate) mod tests {
 
         let witnesses = generate_witnesses(&language_public_parameters, batch_size);
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         crate::proof::tests::valid_proof_verifies::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters,
@@ -628,19 +622,17 @@ pub(crate) mod tests {
     fn proof_with_out_of_range_witness_fails(#[case] batch_size: usize) {
         let language_public_parameters = public_parameters();
 
-        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
 
         crate::proof::tests::proof_with_out_of_range_witness_fails::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters,
@@ -648,26 +640,23 @@ pub(crate) mod tests {
             witnesses,
         )
     }
-
     #[rstest]
     #[case(1)]
     #[case(2)]
     fn proof_with_valid_range_proof_over_wrong_witness_fails(#[case] batch_size: usize) {
         let language_public_parameters = public_parameters();
 
-        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let witnesses = generate_witnesses(&language_public_parameters, batch_size);
 
         crate::proof::tests::proof_with_valid_range_proof_over_wrong_witness_fails::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters,
@@ -689,17 +678,15 @@ pub(crate) mod tests {
                 .take(number_of_parties)
                 .collect();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         crate::aggregation::tests::aggregates::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters,
@@ -707,7 +694,6 @@ pub(crate) mod tests {
             witnesses,
         );
     }
-
     #[rstest]
     #[case(2, 1)]
     #[case(3, 3)]
@@ -725,17 +711,15 @@ pub(crate) mod tests {
                 .take(number_of_parties)
                 .collect();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         crate::aggregation::tests::party_mismatching_maurer_range_proof_statements_aborts_identifiably::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters,
@@ -760,17 +744,15 @@ pub(crate) mod tests {
                 .take(number_of_parties)
                 .collect();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         let commitment_round_parties = setup_aggregation::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters.clone(),
@@ -799,17 +781,15 @@ pub(crate) mod tests {
                 .take(number_of_parties)
                 .collect();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         let commitment_round_parties = setup_aggregation::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters.clone(),
@@ -825,7 +805,7 @@ pub(crate) mod tests {
         let wrong_commitment_round_parties = setup_aggregation::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters.clone(),
@@ -854,17 +834,15 @@ pub(crate) mod tests {
                 .take(number_of_parties)
                 .collect();
 
-        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
-            language_public_parameters
-                .encryption_scheme_public_parameters
-                .randomness_space_public_parameters()
-                .clone(),
-        );
+        let unbounded_witness_public_parameters = language_public_parameters
+            .encryption_scheme_public_parameters
+            .randomness_space_public_parameters()
+            .clone();
 
         let commitment_round_parties = setup_aggregation::<
             SOUND_PROOFS_REPETITIONS,
             RANGE_CLAIMS_PER_SCALAR,
-            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            tiresias::RandomnessSpaceGroupElement,
             Lang,
         >(
             unbounded_witness_public_parameters.clone(),
