@@ -15,23 +15,23 @@ use crate::{language::DecomposableWitness, EnhanceableLanguage};
 /// SECURITY NOTICE:
 /// This language implicitly assumes that the plaintext space of the encryption scheme and the
 /// scalar group coincide (same exponent). Using generic encryption schemes is permitted if and only
-/// if we use this language in its enhanced form, i.e. `EnhancedLanguage`.
+/// if we use this language in its enhanced form, i.e., `EnhancedLanguage`.
 ///
 /// SECURITY NOTICE (2):
-/// Furthermore, even when using `EnhancedLanguage`, note that ENC_DH proves a correct computation
-/// that is not a secure function evaluation. That is, the result is not safe to decrypt, as it does
+/// Furthermore, even when using `EnhancedLanguage`, note that `ENC_DH` proves a correct computation
+/// that is not a secure function evaluation. That is, the result is unsafe to decrypt, as it does
 /// not hide the number of arithmetic reductions mod q. For secure function evaluation, use
 /// `DComEval` (enhanced) language. Because correctness and zero-knowledge is guaranteed for any
 /// group and additively homomorphic encryption scheme in this language, we choose to provide a
 /// fully generic implementation.
 ///
-/// However knowledge-soundness proofs are group and encryption scheme dependent, and thus we can
-/// only assure security for groups and encryption schemes for which we know how to prove it.
+/// However, knowledge-soundness proofs are group and encryption scheme-dependent, and thus we can
+/// only ensure security for groups and encryption schemes for which we know how to prove it.
 ///
 /// In the paper, we have proved it for any prime known-order group; so it is safe to use with a
 /// `PrimeOrderGroupElement`.
 ///
-/// In regards to additively homomorphic encryption schemes, we proved it for `paillier`.
+/// Regarding additively homomorphic encryption schemes, we proved it for `Paillier`.
 #[derive(Clone, Serialize, Deserialize, PartialEq, Debug, Eq)]
 pub struct Language<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
@@ -72,7 +72,7 @@ pub type StatementSpaceGroupElement<
 
 /// The Public Parameters of the Scaling of a Discrete Log Maurer Language.
 /// The `lower_bound` of `ciphertext` should be verified independently,
-/// e.g. by verifying (and following) a sequence of enhanced proofs over the homomorphic
+/// e.g., by verifying (and following) a sequence of enhanced proofs over the homomorphic
 /// computations that yields it.
 pub type PublicParameters<
     const PLAINTEXT_SPACE_SCALAR_LIMBS: usize,
@@ -157,7 +157,8 @@ where
                 .ciphertext_space_public_parameters(),
         )?;
 
-        // no mask needed, as we don't need circuit privacy.
+        // No masking of the plaintext is needed, as we don't need secure function evaluation.
+        // However, we do want to re-randomize the ciphertext when doing the scalar multiplication, to ensure circuit privacy against an adversary that does not hold the private key, that is, the centralised party A.
         let mask = witness.discrete_log().neutral();
 
         let scaled_ciphertext = encryption_key
@@ -425,8 +426,8 @@ where
 }
 
 pub trait WitnessAccessors<
-    PlaintextSpaceGroupElement: group::GroupElement,
-    RandomnessSpaceGroupElement: group::GroupElement,
+    PlaintextSpaceGroupElement: GroupElement,
+    RandomnessSpaceGroupElement: GroupElement,
 >
 {
     fn discrete_log(&self) -> &PlaintextSpaceGroupElement;
