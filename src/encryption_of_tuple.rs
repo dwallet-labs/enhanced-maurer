@@ -159,7 +159,7 @@ where
             &language_public_parameters.encryption_scheme_public_parameters,
         );
 
-        // no mask needed, as we don't need circuit privacy.
+        // No masking of the plaintext is needed, as we don't need secure function evaluation.
         let mask = witness.multiplicand().neutral();
 
         let encrypted_product = encryption_key
