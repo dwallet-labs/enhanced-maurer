@@ -13,7 +13,7 @@ group = { git = "https://github.com/dwallet-labs/group.git" }
 proof = { git = "https://github.com/dwallet-labs/proof.git" }
 homomorphic_encryption = { git = "https://github.com/dwallet-labs/homomorphic-encryption.git" }
 commitment = { git = "https://github.com/dwallet-labs/commitment.git" }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "dcomeq" }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git" }
 tiresias = { git = "https://github.com/dwallet-labs/tiresias.git", features = ["test_exports"] }
 thiserror = "1.0"
 
@@ -28,7 +28,7 @@ curve25519-dalek = { package = "curve25519-dalek-ng", version = "4", default-fea
 rand_core = { version = "0.6", features = ["std"] }
 rstest = { version = "0.18" }
 proof = { git = "https://github.com/dwallet-labs/proof.git", features = ["test_helpers"] }
-maurer = { git = "https://github.com/dwallet-labs/maurer.git", branch = "dcomeq", features = ["test_helpers"] }
+maurer = { git = "https://github.com/dwallet-labs/maurer.git", features = ["test_helpers"] }
 
 [features]
 default = []
