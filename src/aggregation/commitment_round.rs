@@ -1,12 +1,12 @@
 // Author: dWallet Labs, Ltd.
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 
-use std::collections::HashSet;
+use std::{collections::HashSet, fmt::Debug};
 
 use commitment::Commitment;
 use crypto_bigint::rand_core::CryptoRngCore;
 use group::{PartyID, Samplable};
-use proof::{range, AggregatableRangeProof};
+use proof::{aggregation, aggregation::Instantiatable, range, AggregatableRangeProof};
 use serde::Serialize;
 
 use crate::{
@@ -243,6 +243,98 @@ impl<
             maurer_commitment_round_party,
             range_proof_commitment_round_party,
         })
+    }
+}
+
+impl<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        const COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS: usize,
+        RangeProof: AggregatableRangeProof<COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS>,
+        UnboundedWitnessSpaceGroupElement: Samplable,
+        Language: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            UnboundedWitnessSpaceGroupElement,
+        >,
+        ProtocolContext: Clone + Serialize + Debug + PartialEq + Eq,
+    >
+    Instantiatable<
+        Proof<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
+            ProtocolContext,
+        >,
+    >
+    for aggregation::synchronous::Party<
+        Output<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
+            ProtocolContext,
+        >,
+        Party<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
+            ProtocolContext,
+        >,
+    >
+where
+    Error: From<
+        range::AggregationError<
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+        >,
+    >,
+{
+    fn new_session(
+        party_id: PartyID,
+        _threshold: PartyID,
+        parties: HashSet<PartyID>,
+        protocol_context: ProtocolContext,
+        public_parameters: EnhancedPublicParameters<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+            RangeProof,
+            UnboundedWitnessSpaceGroupElement,
+            Language,
+        >,
+        witnesses: Vec<
+            WitnessSpaceGroupElement<
+                REPETITIONS,
+                NUM_RANGE_CLAIMS,
+                COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS,
+                RangeProof,
+                UnboundedWitnessSpaceGroupElement,
+                Language,
+            >,
+        >,
+        rng: &mut impl CryptoRngCore,
+    ) -> std::result::Result<Self, <Self as proof::mpc::Party>::Error> {
+        let party = Party::new_session(
+            party_id,
+            parties,
+            public_parameters,
+            protocol_context,
+            witnesses,
+            rng,
+        )?;
+
+        Ok(party.into())
     }
 }
 

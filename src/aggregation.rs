@@ -46,7 +46,10 @@ pub(crate) mod tests {
 
     use crypto_bigint::U256;
     use group::{PartyID, Samplable};
-    use proof::range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS};
+    use proof::{
+        aggregation::synchronous::Party,
+        range::{bulletproofs, bulletproofs::COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS},
+    };
     use rand_core::OsRng;
 
     use crate::{
@@ -175,6 +178,67 @@ pub(crate) mod tests {
 
         let (.., (proof, statements)) =
             proof::aggregation::test_helpers::aggregates(commitment_round_parties);
+
+        assert!(
+            proof
+                .verify(
+                    &PhantomData,
+                    &enhanced_language_public_parameters,
+                    statements,
+                    &mut OsRng,
+                )
+                .is_ok(),
+            "valid aggregated enhanced proofs should verify"
+        );
+    }
+
+    /// Test that the MPC Session for the Maurer aggregation protocol for `Lang` succeeds.
+    pub fn mpc_session_terminates_successfully<
+        const REPETITIONS: usize,
+        const NUM_RANGE_CLAIMS: usize,
+        UnboundedWitnessSpaceGroupElement: group::GroupElement + Samplable,
+        Lang: EnhanceableLanguage<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            { COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS },
+            UnboundedWitnessSpaceGroupElement,
+        >,
+    >(
+        unbounded_witness_public_parameters: UnboundedWitnessSpaceGroupElement::PublicParameters,
+        language_public_parameters: Lang::PublicParameters,
+        witnesses: Vec<Vec<Lang::WitnessSpaceGroupElement>>,
+    ) {
+        let enhanced_language_public_parameters = enhanced_language_public_parameters::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters.clone(),
+        );
+
+        let commitment_round_parties = setup_aggregation::<
+            REPETITIONS,
+            NUM_RANGE_CLAIMS,
+            UnboundedWitnessSpaceGroupElement,
+            Lang,
+        >(
+            unbounded_witness_public_parameters.clone(),
+            language_public_parameters,
+            witnesses,
+        );
+
+        let (proof, statements) = proof::mpc::test_helpers::session_terminates_successfully(
+            commitment_round_parties
+                .into_iter()
+                .map(|(party_id, party)| (party_id, Party::from(party)))
+                .collect(),
+            None,
+            &(),
+            &mut OsRng,
+        )
+        .unwrap();
 
         assert!(
             proof

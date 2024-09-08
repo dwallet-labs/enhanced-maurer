@@ -66,3 +66,12 @@ impl TryInto<::proof::aggregation::Error> for Error {
         }
     }
 }
+
+impl TryInto<::proof::mpc::Error> for Error {
+    type Error = Error;
+
+    fn try_into(self) -> std::result::Result<::proof::mpc::Error, Self::Error> {
+        let error: ::proof::aggregation::Error = self.try_into()?;
+        Ok(error.into())
+    }
+}

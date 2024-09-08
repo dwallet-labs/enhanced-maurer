@@ -515,14 +515,21 @@ impl<
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use std::{collections::HashMap, iter, marker::PhantomData};
+    use std::{
+        collections::{HashMap, HashSet},
+        iter,
+        marker::PhantomData,
+    };
 
     use ::bulletproofs::{BulletproofGens, PedersenGens};
     use crypto_bigint::{U256, U64};
     use group::PartyID;
-    use proof::range::{
-        bulletproofs,
-        bulletproofs::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS},
+    use proof::{
+        aggregation::Instantiatable,
+        range::{
+            bulletproofs,
+            bulletproofs::{COMMITMENT_SCHEME_MESSAGE_SPACE_SCALAR_LIMBS, RANGE_CLAIM_BITS},
+        },
     };
     use rand_core::OsRng;
 
@@ -625,6 +632,11 @@ pub(crate) mod tests {
             language_public_parameters,
         );
 
+        let parties: HashSet<_> = (1..=witnesses.len())
+            .map(u16::try_from)
+            .map(std::result::Result::unwrap)
+            .collect();
+
         let parties: HashMap<_, _> = witnesses
             .into_iter()
             .enumerate()
@@ -643,7 +655,7 @@ pub(crate) mod tests {
                 )
                 .unwrap();
 
-                let party = proof::aggregation::asynchronous::Party::<
+                let party: proof::aggregation::asynchronous::Party<
                     Proof<
                         REPETITIONS,
                         NUM_RANGE_CLAIMS,
@@ -653,12 +665,16 @@ pub(crate) mod tests {
                         Lang,
                         PhantomData<()>,
                     >,
-                >::Proof {
-                    witnesses,
-                    public_parameters: enhanced_language_public_parameters.clone(),
-                    protocol_context: PhantomData,
+                > = proof::aggregation::asynchronous::Party::new_session(
+                    party_id,
                     threshold,
-                };
+                    parties.clone(),
+                    PhantomData,
+                    enhanced_language_public_parameters.clone(),
+                    witnesses,
+                    &mut OsRng,
+                )
+                .unwrap();
 
                 (party_id, party)
             })

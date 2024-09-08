@@ -709,6 +709,41 @@ pub(crate) mod tests {
     }
 
     #[rstest]
+    #[case(2, 1)]
+    #[case(2, 3)]
+    #[case(3, 1)]
+    #[case(3, 3)]
+    fn mpc_session_terminates_successfully(
+        #[case] number_of_parties: usize,
+        #[case] batch_size: usize,
+    ) {
+        let language_public_parameters = public_parameters();
+
+        let witnesses =
+            iter::repeat_with(|| generate_witnesses(&language_public_parameters, batch_size))
+                .take(number_of_parties)
+                .collect();
+
+        let unbounded_witness_public_parameters = self_product::PublicParameters::new(
+            language_public_parameters
+                .encryption_scheme_public_parameters
+                .randomness_space_public_parameters()
+                .clone(),
+        );
+
+        crate::aggregation::tests::mpc_session_terminates_successfully::<
+            SOUND_PROOFS_REPETITIONS,
+            RANGE_CLAIMS_PER_SCALAR,
+            self_product::GroupElement<2, tiresias::RandomnessSpaceGroupElement>,
+            Lang,
+        >(
+            unbounded_witness_public_parameters,
+            language_public_parameters,
+            witnesses,
+        );
+    }
+
+    #[rstest]
     #[case(1, 1, 1)]
     #[case(1, 1, 2)]
     #[case(2, 2, 1)]
